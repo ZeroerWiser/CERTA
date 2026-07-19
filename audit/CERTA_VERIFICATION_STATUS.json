@@ -1,0 +1,16 @@
+{
+  "commands": {
+    "checksums": "sha256sum -c audit/checksums.sha256",
+    "compileall": "python -m compileall -q .",
+    "offline_evaluator_smoke": "python tools/cscr_astra_eval.py --judge-backend none ...",
+    "pyflakes": "python -m pyflakes run_cscr_pipeline.py certa tools tests",
+    "shell_syntax": "bash -n run_cscr.sh scripts/01_run_main.sh scripts/02_run_ablation.sh scripts/03_run_efficiency.sh scripts/04_evaluate.sh scripts/_release_common.sh",
+    "unittest": "python -m unittest tests/test_qwen3_vllm_thinking.py tests/test_release_wrappers.py tests/test_result_parity.py tests/test_diagnostic_serialization.py -v"
+  },
+  "full_test_suite": "excluded: historical tests require removed audit materials or pytest and are not part of the retained unittest closure",
+  "dependency_clean_install": "UNVERIFIED: the bare temporary venv installation of the torch+cu128 CUDA closure was intentionally stopped before completion; the provisioned table-cu128 runtime has unrelated vLLM server dependency conflicts under pip check.",
+  "historical_answer_equivalence": "Qwen3 and LLaMA3 historical answer equivalence are retained as separate external behavior evidence; LLaMA3 is not a public release profile.",
+  "historical_artifact_comparison": "FAIL_RECORDED_SEPARATELY: historical artifact differences do not satisfy RELEASE_ARTIFACT_STRICT_PARITY.",
+  "release_artifact_strict_parity": "PASS: two independent clean checkouts at evidence commit 075a40cf67a432ff7caea0c87bb985decfd725d6 produced 387/387 predictions each, identical local evaluator metrics, and zero strict comparator differences.",
+  "status": "RELEASE_BLOCKED"
+}

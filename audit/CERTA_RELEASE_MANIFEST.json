@@ -1,0 +1,150 @@
+{
+  "excluded_path_classes": {
+    "blind_path_only": [
+      ".git",
+      ".worktrees",
+      "reference_inputs",
+      "reference_inputs/UNBLIND_AFTER_CHECKPOINT",
+      "certa_final_dual_track_authority_and_performance_lineage_freeze_pack",
+      "certa_codex_agent_pack"
+    ],
+    "deprecated_or_nonpublic_entrypoints": [
+      "run_all_experiments.sh",
+      "scripts/model_profiles/deepseek_v3_0324.sh",
+      "scripts/run_e65_4_smoke_and_audit.sh",
+      "scripts/run_main_cert_matrix_and_audit.sh"
+    ],
+    "human_documentation": [
+      "docs/**",
+      "audit/*.md"
+    ],
+    "legacy_tests": [
+      "tests/test_*.py except the four files listed in retained_unittest_closure"
+    ],
+    "release_external": [
+      "dataset",
+      "datasets",
+      "runs",
+      "outputs",
+      "logs",
+      "caches",
+      "configs/paths.env"
+    ]
+  },
+  "history_contract": {
+    "backup_location": "/tmp/CERTA-preorphan-20260720-orphan-rebuild.bundle",
+    "blind_content_read": false,
+    "no_backup_ref_in_final_git_dir": true,
+    "orphan_root_required": true
+  },
+  "parity_status_file": "audit/CERTA_PARITY_STATUS.json",
+  "public_profile_contract": {
+    "cache_mode": "off",
+    "dataset": {
+      "expected_prediction_count": 387,
+      "input_file_name": "aitqa_clean_questions.json",
+      "input_sha256": "14f3d27bea5d8c19dffc21457a3d2bc5313fbcf4252b8517d6d01b117f655064",
+      "name": "aitqa_clean",
+      "table_file_count": 3,
+      "table_sha256": "ce0204d17e15300c67238a2d187a8eeb497d8bf27d47eb58467d0db79ac5f903",
+      "table_tree_name": "AIT-QA"
+    },
+    "evaluator": {
+      "judge_backend": "none",
+      "metrics": [
+        "EM_textual_accuracy",
+        "EM_symbolic_accuracy",
+        "EM_max_accuracy"
+      ],
+      "path": "tools/cscr_astra_eval.py",
+      "sha256": "368415be1ed7dde43594fee81539846f87910d10bfda790f2c176aed44114c62"
+    },
+    "generator": {
+      "api_base_url": "http://127.0.0.1:30338/v1",
+      "api_model": "Qwen3-8B",
+      "backend": "vllm_chat",
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      },
+      "model_id": "Qwen3-8B",
+      "served_model": "Qwen3-8B"
+    },
+    "main_cert_profile": false,
+    "max_answer_tokens": 32,
+    "max_model_len": 8192,
+    "profile_path": "configs/profiles/main.env",
+    "profile_sha256": "b15452eb20fcc19bdd4c7d0c14dd3766a9145842b29d0c3a27a7023e1175d2f7",
+    "python": {
+      "environment": "table-cu128",
+      "executable": "/home/hsh/anaconda3/envs/table-cu128/bin/python3.10",
+      "version": "3.10.20"
+    },
+    "pythonhashseed": "0",
+    "runtime_packages": {
+      "cuda": "12.8",
+      "lock_file": "requirements-runtime.lock",
+      "lock_sha256": "009f6c982e1e5ed5783ba56bff82226f0af1be9f040127e11f573e7963a5a297",
+      "openai": "2.44.0",
+      "torch": "2.8.0+cu128",
+      "transformers": "4.57.0",
+      "vllm": "0.11.0"
+    },
+    "seed": 0,
+    "wrapper": "scripts/01_run_main.sh"
+  },
+  "public_datasets": [
+    "aitqa_clean"
+  ],
+  "public_models": [
+    "Qwen3-8B"
+  ],
+  "release_blockers": [
+    "DEPENDENCY_CLEAN_INSTALL_UNVERIFIED: a bare temporary venv requires the complete torch+cu128 CUDA wheel closure; installation was stopped before pip check and import verification."
+  ],
+  "release_name": "CERTA minimal independent runtime release",
+  "release_adaptations": [
+    {
+      "paths": [
+        "run_cscr_pipeline.py",
+        "tests/test_qwen3_vllm_thinking.py"
+      ],
+      "purpose": "Qwen3 OpenAI-compatible vLLM transport sends enable_thinking=false; no CERTA method, prompt, selector, operation, evaluator, or final-answer authority changes."
+    },
+    {
+      "paths": [
+        "run_cscr_pipeline.py",
+        "tests/test_diagnostic_serialization.py"
+      ],
+      "purpose": "Diagnostic reason serialization uses stable sorted deduplication only; candidate, certificate, and final-answer selection are unchanged."
+    },
+    {
+      "paths": [
+        "scripts/01_run_main.sh",
+        "scripts/_release_common.sh",
+        "configs/profiles/main.env",
+        "tests/test_release_wrappers.py"
+      ],
+      "purpose": "Public Qwen3/AIT-QA runtime contract freezes and records existing effective defaults without changing CERTA method semantics."
+    },
+    {
+      "paths": [
+        "tools/result_parity.py",
+        "tests/test_result_parity.py"
+      ],
+      "purpose": "Parity reporting separates answer equivalence from strict artifact parity and permits only explicitly declared volatile fields."
+    }
+  ],
+  "release_scope": "qwen3_aitqa_runtime",
+  "release_state": "RELEASE_BLOCKED",
+  "release_status": "RELEASE_BLOCKED",
+  "retained_unittest_closure": [
+    "tests/test_qwen3_vllm_thinking.py",
+    "tests/test_release_wrappers.py",
+    "tests/test_result_parity.py",
+    "tests/test_diagnostic_serialization.py"
+  ],
+  "llama3_status": "historical_external_evidence_only",
+  "source_commit": "0135203cad30710ddd4a854c9228dd564c2fca84",
+  "target_commit_note": "A single commit cannot contain its own SHA-1. Resolve this field with git rev-parse HEAD after the orphan root commit.",
+  "target_commit_reference": "HEAD"
+}

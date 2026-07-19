@@ -1,0 +1,59 @@
+{
+  "definition": {
+    "HISTORICAL_ANSWER_EQUIVALENCE": "Against a historical artifact, both predictions.jsonl files must have identical row counts and sample-ID sets; for every sample ID, llm_answer and final_answer must be exactly equal. This is behavior evidence, not a release reproducibility gate.",
+    "RELEASE_ARTIFACT_STRICT_PARITY": "For two independent clean checkouts of the frozen public profile, all required prediction, debug-prediction, metrics, and run-config fields must be exactly equal except only declared volatile fields. This is the release reproducibility gate.",
+    "non_substitutable": true
+  },
+  "llama3_8b_aitqa_387": {
+    "historical_answer_equivalence": {
+      "source_row_count": 387,
+      "status": "PASS_REPORTED",
+      "target_row_count": 387
+    },
+    "historical_artifact_comparison": {
+      "difference_count": 3291,
+      "reason": "pre-fix diagnostic reason ordering was process-dependent",
+      "status": "FAIL_REPORTED"
+    },
+    "evidence_boundary": "historical external evidence only; no LLaMA3 public wrapper, profile, execution commitment, or historical prediction artifact is included in this repository.",
+    "release_artifact_strict_parity": {
+      "reason": "not applicable: LLaMA3 is outside the public qwen3_aitqa_runtime release scope",
+      "status": "NOT_APPLICABLE"
+    }
+  },
+  "qwen3_8b_aitqa_387": {
+    "historical_answer_equivalence": {
+      "source_row_count": 387,
+      "status": "PASS",
+      "target_row_count": 387
+    },
+    "historical_artifact_comparison": {
+      "difference_count": 62127,
+      "reason": "historical main_cert_profile and operation-support diagnostic configuration differs from the public wrapper profile",
+      "status": "FAIL"
+    },
+    "evidence_boundary": "run artifacts remain outside this repository and are referenced only by external path in the final handoff.",
+    "offline_local_metrics": {
+      "EM_max_accuracy": 0.8475452196382429,
+      "EM_symbolic_accuracy": 0.16795865633074936,
+      "EM_textual_accuracy": 0.8268733850129198
+    },
+    "release_artifact_strict_parity": {
+      "answer_equivalent": "PASS",
+      "artifact_strict_parity": "PASS",
+      "coverage_per_checkout": 1.0,
+      "evidence_archive": "/home/hsh/ME/Table/EMNLP2026/CERTA_release_evidence_20260720_qwen3_public_strict",
+      "evidence_archive_manifest": "release_evidence_manifest.json",
+      "evidence_commit": "075a40cf67a432ff7caea0c87bb985decfd725d6",
+      "evaluator_metrics": {
+        "EM_max_accuracy": 0.8475452196382429,
+        "EM_symbolic_accuracy": 0.16795865633074936,
+        "EM_textual_accuracy": 0.8294573643410853
+      },
+      "evaluator_rows_per_checkout": 387,
+      "report_sha256": "eee271002046e5f0c506ddc32d0d5b41ef4c3afdd4e211eedd181bc4f38e88c1",
+      "status": "PASS",
+      "strict_difference_count": 0
+    }
+  }
+}

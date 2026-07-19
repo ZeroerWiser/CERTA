@@ -1,0 +1,32 @@
+{
+  "blind_path_only": [
+    ".git",
+    ".worktrees",
+    "reference_inputs",
+    "reference_inputs/UNBLIND_AFTER_CHECKPOINT",
+    "certa_final_dual_track_authority_and_performance_lineage_freeze_pack",
+    "certa_codex_agent_pack"
+  ],
+  "deprecated_or_nonpublic_entrypoints": [
+    "run_all_experiments.sh",
+    "scripts/model_profiles/deepseek_v3_0324.sh",
+    "scripts/run_e65_4_smoke_and_audit.sh",
+    "scripts/run_main_cert_matrix_and_audit.sh"
+  ],
+  "human_documentation": [
+    "docs/**",
+    "audit/*.md"
+  ],
+  "legacy_tests": [
+    "tests/test_*.py except the four files listed in retained_unittest_closure"
+  ],
+  "release_external": [
+    "dataset",
+    "datasets",
+    "runs",
+    "outputs",
+    "logs",
+    "caches",
+    "configs/paths.env"
+  ]
+}

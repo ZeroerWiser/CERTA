@@ -1,0 +1,12 @@
+# Resolved from the provisioned table-cu128 runtime on 2026-07-20. The CUDA
+# torch base is supplied by that environment; vLLM is a served endpoint, not a
+# CERTA client dependency.
+jsonschema==4.26.0
+numpy==1.26.4
+openai==2.44.0
+openpyxl==3.1.5
+requests==2.34.2
+tiktoken==0.13.0
+tokenizers==0.22.2
+torch==2.8.0+cu128
+transformers==4.57.0
