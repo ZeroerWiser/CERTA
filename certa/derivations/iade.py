@@ -23,6 +23,7 @@ class RoleInterventionObservation:
     post_answer: Optional[str]
     answer_key: str = ""
     reason_class: str = ""
+    benign_control: bool = False
 
 
 @dataclass(frozen=True)
@@ -105,9 +106,11 @@ def _observe_role_substitution(
     if role == "TARGET_ENTITY":
         next_entity_ids = list(target_schema_ids)
         next_measure_ids = current_measure_ids
+        benign_control = next_entity_ids == current_entity_ids
     elif role == "TARGET_MEASURE":
         next_entity_ids = current_entity_ids
         next_measure_ids = list(target_schema_ids)
+        benign_control = next_measure_ids == current_measure_ids
     else:
         return RoleInterventionObservation(
             intervention_id=intervention_id,
@@ -118,6 +121,7 @@ def _observe_role_substitution(
             pre_answer=derivation.projected_answer,
             post_answer=None,
             reason_class="unsupported_role",
+            benign_control=False,
         )
     post_answer, failure_reason = _resolve_lookup_answer(
         derivation,
@@ -135,6 +139,7 @@ def _observe_role_substitution(
             pre_answer=derivation.projected_answer,
             post_answer=None,
             reason_class=failure_reason,
+            benign_control=benign_control,
         )
     response = "INVARIANT" if inference_answers_equivalent(derivation.projected_answer, post_answer) else "ANSWER_CHANGED"
     return RoleInterventionObservation(
@@ -146,6 +151,7 @@ def _observe_role_substitution(
         pre_answer=derivation.projected_answer,
         post_answer=post_answer,
         answer_key=inference_answer_key(post_answer).compact(),
+        benign_control=benign_control,
     )
 
 

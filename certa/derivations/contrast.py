@@ -679,6 +679,8 @@ def build_compact_behavioral_contrast_v3(
                 "target_schema_ids": list(getattr(item, "target_schema_ids", ()) or []),
                 "original_signature": original_sig,
                 "alternative_signature": alternative_sig,
+                "original_benign_control": bool(getattr(original_response, "benign_control", False)),
+                "alternative_benign_control": bool(getattr(alternative_response, "benign_control", False)),
                 "evaluable_on_both_sides": evaluable,
                 "separating": is_separating,
             }
@@ -692,6 +694,8 @@ def build_compact_behavioral_contrast_v3(
                 "role_intervention_id": getattr(item, "intervention_id", ""),
                 "role": getattr(item, "role", ""),
                 "target_schema_ids": list(getattr(item, "target_schema_ids", ()) or []),
+                "original_benign_control": False,
+                "alternative_benign_control": False,
                 "evaluable_on_both_sides": False,
                 "separating": False,
             })
