@@ -56,7 +56,19 @@ def normalize_answer(answer: Any) -> str:
     return text.strip()
 
 
+def is_missing_or_empty(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, (list, tuple, set)):
+        return not value or all(is_missing_or_empty(item) for item in value)
+    if isinstance(value, dict):
+        return not value
+    return not str(value).strip()
+
+
 def exact_match(prediction: Any, ground_truth: Any) -> bool:
+    if is_missing_or_empty(prediction) or is_missing_or_empty(ground_truth):
+        return False
     pred_norm = normalize_answer(prediction)
     gt_norm = normalize_answer(ground_truth)
     if pred_norm == gt_norm:
@@ -109,6 +121,8 @@ def dataset_label_prefix(dataset: str) -> str:
 
 
 def official_match(dataset: str, prediction: Any, ground_truth: Any) -> bool:
+    if is_missing_or_empty(prediction) or is_missing_or_empty(ground_truth):
+        return False
     normalized = normalize_dataset_name(dataset)
     gold = parse_gold_literal(ground_truth)
     if normalized == "hitab":
@@ -219,10 +233,16 @@ def filter_clean_rows_by_reference(
 
 def prediction_by_id(predictions: Sequence[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     out: Dict[str, Dict[str, Any]] = {}
+    duplicates = set()
     for pred in predictions:
         sid = str(pred.get("id") or "")
-        if sid:
-            out[sid] = pred
+        if not sid:
+            raise ValueError("missing prediction ID")
+        if sid in out:
+            duplicates.add(sid)
+        out[sid] = pred
+    if duplicates:
+        raise ValueError(f"duplicate prediction IDs: {', '.join(sorted(duplicates))}")
     return out
 
 
@@ -241,6 +261,26 @@ def build_astra_payload(
     dataset: str,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     pred_map = prediction_by_id(predictions)
+    reference_ids: List[str] = []
+    seen_reference_ids = set()
+    duplicate_reference_ids = set()
+    for sample in clean_rows:
+        sid = str(sample.get("id") or "")
+        if not sid:
+            raise ValueError("missing reference ID")
+        if sid in seen_reference_ids:
+            duplicate_reference_ids.add(sid)
+        seen_reference_ids.add(sid)
+        reference_ids.append(sid)
+    if duplicate_reference_ids:
+        raise ValueError(f"duplicate reference IDs: {', '.join(sorted(duplicate_reference_ids))}")
+    reference_id_set = set(reference_ids)
+    missing_prediction_ids = sorted(reference_id_set - set(pred_map))
+    if missing_prediction_ids:
+        raise ValueError(f"missing prediction IDs: {', '.join(missing_prediction_ids)}")
+    extra_prediction_ids = sorted(set(pred_map) - reference_id_set)
+    if extra_prediction_ids:
+        raise ValueError(f"extra prediction IDs: {', '.join(extra_prediction_ids)}")
     prefix = dataset_label_prefix(dataset)
     table_results: List[Dict[str, Any]] = []
     missing: List[Dict[str, Any]] = []
@@ -565,10 +605,11 @@ def evaluate_payload(
         correct = q.get("correct_answer", "")
         generated = q.get("generated_answer", "")
         symbolic = q.get("symbolic_answer", "")
-        textual_label = int(exact_match(generated, correct))
-        symbolic_label = int(exact_match(symbolic, correct))
-        official_textual = int(official_match(dataset, generated, correct))
-        official_symbolic = int(official_match(dataset, symbolic, correct))
+        reference_valid = not is_missing_or_empty(correct)
+        textual_label = int(reference_valid and exact_match(generated, correct))
+        symbolic_label = int(reference_valid and exact_match(symbolic, correct))
+        official_textual = int(reference_valid and official_match(dataset, generated, correct))
+        official_symbolic = int(reference_valid and official_match(dataset, symbolic, correct))
 
         row = {
             "question_index": q.get("question_index", 0),
@@ -580,6 +621,8 @@ def evaluate_payload(
             "generated_answer": generated,
             "symbolic_answer": symbolic,
             "extra_answer": q.get("extra_answer", ""),
+            "reference_valid": reference_valid,
+            "reference_invalid_reason": "" if reference_valid else "missing_or_empty_gold",
             "EM_textual_label": textual_label,
             "EM_symbolic_label": symbolic_label,
             "Official_textual_label": official_textual,
@@ -692,6 +735,11 @@ def compute_metrics(results: Sequence[Dict[str, Any]], use_judge: bool, dataset:
         "EM_textual_accuracy": rate(em_textual),
         "EM_symbolic_accuracy": rate(em_symbolic),
         "EM_max_accuracy": rate(em_max),
+        "EM_max_semantics": "oracle_union_textual_or_symbolic",
+        "selected_final_accuracy": rate(em_textual),
+        "selected_final_correct": em_textual,
+        "selected_final_semantics": "actual_final_answer_textual_channel",
+        "invalid_reference_count": sum(1 for row in results if row.get("reference_valid") is False),
         "Official_textual_accuracy": rate(official_textual),
         "Official_symbolic_accuracy": rate(official_symbolic),
         "Official_max_accuracy": rate(official_max),
