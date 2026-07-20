@@ -9,6 +9,10 @@ from typing import Any, Dict, Mapping
 import jsonschema
 
 from certa.operations.contracts import OPERATION_SIGNATURES, operation_signature_telemetry
+from certa.egra.transport_schema import (
+    build_query_role_transport_schema,
+    transport_adapter_sha256,
+)
 from certa.reproducibility.canonical_json import canonical_json, canonical_json_hash
 
 
@@ -267,11 +271,13 @@ def request_query_role_contract(
             f"{canonical_json(transport_identity)}"
         )
     prompt = build_query_role_prompt(question)
-    schema = build_query_role_response_schema()
-    schema_hash = canonical_json_hash(schema)
+    semantic_schema = build_query_role_response_schema()
+    transport_schema = build_query_role_transport_schema(semantic_schema)
+    semantic_schema_hash = canonical_json_hash(semantic_schema)
+    transport_schema_hash = canonical_json_hash(transport_schema)
     output = dict(generator.generate_json_schema(
         prompt,
-        response_schema=schema,
+        response_schema=transport_schema,
         schema_name=QUERY_ROLE_CONTRACT_VERSION,
         max_new_tokens=QUERY_ROLE_MAX_TOKENS,
         temperature=0.0,
@@ -282,11 +288,13 @@ def request_query_role_contract(
         transport_errors.append(f"generation_error:{output['error']}")
     if not output.get("structured_output_requested", False):
         transport_errors.append("structured_output_request_not_confirmed")
-    if output.get("structured_output_fallback_used", False):
+    if not isinstance(output.get("structured_output_fallback_used"), bool):
+        transport_errors.append("structured_output_fallback_evidence_missing")
+    elif output.get("structured_output_fallback_used") is not False:
         transport_errors.append("structured_output_fallback_forbidden")
     if output.get("structured_output_mechanism") != "response_format.type=json_schema":
         transport_errors.append("structured_output_mechanism_mismatch")
-    if output.get("structured_output_schema_hash") != schema_hash:
+    if output.get("structured_output_schema_hash") != transport_schema_hash:
         transport_errors.append("structured_output_schema_hash_mismatch")
     if str(output.get("api_model") or "") != FROZEN_MODEL:
         transport_errors.append("output_model_identity_mismatch")
@@ -296,8 +304,14 @@ def request_query_role_contract(
         transport_errors.append("output_api_base_url_identity_mismatch")
     if dict(output.get("chat_template_kwargs") or {}) != FROZEN_THINKING:
         transport_errors.append("output_thinking_identity_mismatch")
+    if not isinstance(output.get("api_cache_hit"), bool):
+        transport_errors.append("output_cache_hit_evidence_missing")
+    expected_cache_mode = str(getattr(generator, "cache_mode", ""))
+    if str(output.get("api_cache_mode") or "") != expected_cache_mode:
+        transport_errors.append("output_cache_mode_identity_mismatch")
 
-    validation = validate_query_role_contract(output.get("text", ""))
+    semantic_validation = validate_query_role_contract(output.get("text", ""))
+    validation = semantic_validation
     if transport_errors:
         validation = QueryRoleValidation(
             False,
@@ -325,7 +339,9 @@ def request_query_role_contract(
     raw_output = str(output.get("text", "") or "")
     request_identity = {
         "prompt_sha256": canonical_json_hash({"prompt": prompt}),
-        "schema_sha256": schema_hash,
+        "semantic_schema_sha256": semantic_schema_hash,
+        "transport_schema_sha256": transport_schema_hash,
+        "adapter_sha256": transport_adapter_sha256(),
         "model": model,
         "backend": backend,
         "api_base_url": api_base_url,
@@ -337,7 +353,18 @@ def request_query_role_contract(
         "calls": 1,
         "request_sha256": canonical_json_hash(request_identity),
         "prompt_sha256": request_identity["prompt_sha256"],
-        "schema_sha256": schema_hash,
+        "schema_sha256": semantic_schema_hash,
+        "semantic_schema_sha256": semantic_schema_hash,
+        "transport_schema_sha256": transport_schema_hash,
+        "adapter_sha256": request_identity["adapter_sha256"],
+        "structured_output_schema_sha256": str(
+            output.get("structured_output_schema_hash") or ""
+        ),
+        "structured_output_mechanism": str(
+            output.get("structured_output_mechanism") or ""
+        ),
+        "transport_errors": list(transport_errors),
+        "semantic_errors": list(semantic_validation.errors),
         "raw_output_sha256": canonical_json_hash({"text": raw_output}),
         "normalized_output_sha256": canonical_json_hash(
             validation.normalized_payload
@@ -349,7 +376,11 @@ def request_query_role_contract(
         "sampling": sampling,
         "thinking": thinking,
         "cache": {
-            "hit": bool(output.get("api_cache_hit", False)),
+            "hit": (
+                output.get("api_cache_hit")
+                if isinstance(output.get("api_cache_hit"), bool)
+                else None
+            ),
             "mode": str(
                 output.get("api_cache_mode")
                 or getattr(generator, "cache_mode", "")
@@ -358,8 +389,10 @@ def request_query_role_contract(
         "prompt_tokens": int(output.get("input_token_count", 0) or 0),
         "completion_tokens": int(output.get("generated_token_count", 0) or 0),
         "latency_seconds": float(output.get("generation_seconds", 0.0) or 0.0),
-        "structured_output_fallback_used": bool(
-            output.get("structured_output_fallback_used", False)
+        "structured_output_fallback_used": (
+            output.get("structured_output_fallback_used")
+            if isinstance(output.get("structured_output_fallback_used"), bool)
+            else None
         ),
         "parse_ok": validation.parse_ok,
         "valid": validation.ok,
