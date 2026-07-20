@@ -197,6 +197,7 @@ class PipelineProfileTests(unittest.TestCase):
             self.assertIn(frozen, profile)
         for required in (
             'EXPECTED_EXTERNAL_ROOT="/home/hsh/ME/Table/EMNLP2026/certa_egra_outputs/CERTA_EGRA_V0_20260720T152831Z"',
+            'export PYTHONPATH="${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"',
             "CONSTRUCTOR_CONFIG_FREEZE.json",
             "EARLY_SENTINEL_GATE.json",
             "--certa-egra-arm",

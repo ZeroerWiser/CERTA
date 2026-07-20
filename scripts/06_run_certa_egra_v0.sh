@@ -56,6 +56,7 @@ PY
 
 # shellcheck disable=SC1090
 source "${PROFILE}"
+export PYTHONPATH="${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 
 require_early_pass() {
     "${CSCR_PYTHON}" - "${EARLY_GATE}" <<'PY'
