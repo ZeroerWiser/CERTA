@@ -517,9 +517,12 @@ def build_proposal_blind_planner_view(
         raise ValueError(
             f"unknown_legacy_query_semantics_mode:{legacy_query_semantics_mode}"
         )
-    signature_ids = tuple(sorted(set(
-        str(item) for item in (allowed_signature_ids or OPERATION_SIGNATURES)
-    )))
+    signature_source = (
+        OPERATION_SIGNATURES
+        if allowed_signature_ids is None
+        else allowed_signature_ids
+    )
+    signature_ids = tuple(sorted(set(str(item) for item in signature_source)))
     unknown_signatures = sorted(set(signature_ids) - set(OPERATION_SIGNATURES))
     if unknown_signatures:
         raise ValueError(f"unknown_allowed_signature_ids:{','.join(unknown_signatures)}")

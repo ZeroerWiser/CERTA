@@ -31,6 +31,14 @@ from certa.derivations import (
     materialize_derivations,
     reconstruct_original_support_hypotheses,
 )
+from certa.egra.evidence_cards import build_structural_evidence_cards
+from certa.egra.planner_view import build_role_aligned_planner_view
+from certa.egra.query_role_contract import (
+    CORE_SIGNATURE_IDS,
+    request_query_role_contract,
+    validate_query_role_contract,
+)
+from certa.egra.retrieval import build_card_index, retrieve_structural_cards
 from certa.derivations.answer_equivalence import inference_answer_key, inference_answers_equivalent
 from certa.derivations.project import answers_equivalent
 from certa.evidence.chains import build_causal_evidence_packet, stable_packet_hash
@@ -50,6 +58,7 @@ from certa.planner import (
     validate_diagnostic_boundary_runtime,
     validate_typed_planner_output,
 )
+from certa.planner.schema_view import build_canonical_structural_group_catalog
 from certa.repair.evidence_packet import CERACommitResult, CERAOutput, CertifiedCandidateFull
 from certa.repair.method_context import MethodInferenceContext, assert_method_context_clean
 from certa.repair.repair_prompt import CERA_V3_TEMPLATE_VERSION, DEFAULT_CERA_TEMPLATE_VERSION, build_cera_prompt as _build_cera_prompt
@@ -74,6 +83,12 @@ from certa.traces import (
 ROUND11_CLOSURE_AUDIT_VERSION = "round11_operation_closure_audit_v1"
 ROUND10_CLOSURE_AUDIT_VERSION = "round10_closure_audit_v1"
 ROUND12_SEMANTIC_TYPE_AUDIT_VERSION = "round12_semantic_type_audit_v1"
+EGRA_PARENT_SHA = "9c15effaa23eba4c5fe0b00a69136453326e3854"
+EGRA_ARMS = (
+    "C0_FLAT_SCHEMA_CURRENT",
+    "C1_ROLE_ALIGNED_FLAT",
+    "C2_EGRA",
+)
 
 
 def build_cera_prompt(packet: Any, **kwargs: Any) -> str:
@@ -847,6 +862,24 @@ def _run_typed_derivation_planner(
         "cera_planner_constraint_fallback_used": False,
         "cera_planner_invalid_generated_reference_count": 0,
     }
+    egra_arm = str(
+        getattr(args, "certa_egra_arm", "") if args is not None else ""
+    ).strip()
+    if egra_arm and egra_arm not in EGRA_ARMS:
+        raise ValueError(f"unknown_certa_egra_arm:{egra_arm}")
+    if egra_arm:
+        if (
+            str(getattr(args, "cera_stage", "E71")).upper() != "E71"
+            or not bool(getattr(args, "cera_shadow_only", True))
+            or bool(getattr(args, "cera_commit_approved_repair", False))
+        ):
+            raise ValueError("certa_egra_requires_e71_shadow_no_commit")
+        metadata.update({
+            "certa_egra_arm": egra_arm,
+            "certa_egra_role_contract_called": False,
+            "certa_egra_role_contract_valid": False,
+            "certa_egra_role_contract_errors": [],
+        })
     if graph is None:
         metadata["cera_planner_skipped_reason"] = "no_graph"
         return [], metadata, None
@@ -855,7 +888,11 @@ def _run_typed_derivation_planner(
         getattr(args, "cera_planner_signature_allowlist", "") if args is not None else ""
     ).strip()
     allowed_signature_ids = None
-    if configured_allowlist:
+    if egra_arm and configured_allowlist:
+        raise ValueError("certa_egra_forbids_legacy_signature_allowlist")
+    if egra_arm:
+        allowed_signature_ids = CORE_SIGNATURE_IDS
+    elif configured_allowlist:
         expected_allowlist = ",".join(LOOKUP_ACTIVE_SIGNATURE_IDS)
         if configured_allowlist != expected_allowlist:
             raise ValueError(
@@ -877,7 +914,165 @@ def _run_typed_derivation_planner(
             getattr(args, "cera_commit_approved_repair", False) if args is not None else False
         ),
     )
-    if proposal_aware:
+    planner_contract = str(
+        getattr(args, "cera_planner_contract", "legacy_v1")
+        if args is not None
+        else "legacy_v1"
+    )
+    if egra_arm:
+        if boundary != CERAPlannerBoundary.PROPOSAL_BLIND_SCHEMA_ONLY:
+            raise ValueError("certa_egra_requires_proposal_blind_schema_only")
+        if planner_contract != "rcpc_signature_v2":
+            raise ValueError("certa_egra_requires_rcpc_signature_v2")
+        proposal_aware = False
+
+    if egra_arm == "C0_FLAT_SCHEMA_CURRENT":
+        view = build_proposal_blind_planner_view(
+            question=question,
+            graph=graph,
+            table_json=table_json,
+            query_contract=pre_contract,
+            include_table_values=False,
+            legacy_query_semantics_mode=legacy_query_semantics_mode,
+            allowed_signature_ids=allowed_signature_ids,
+        )
+    elif egra_arm in {"C1_ROLE_ALIGNED_FLAT", "C2_EGRA"}:
+        if generator is None:
+            metadata["cera_planner_skipped_reason"] = "no_generator"
+            return [], metadata, None
+        try:
+            frozen_roles = getattr(
+                args,
+                "_certa_egra_frozen_role_by_question_hash",
+                None,
+            )
+            if frozen_roles is None:
+                role_validation, role_audit = request_query_role_contract(
+                    generator,
+                    question,
+                )
+                role_reused = False
+            else:
+                question_hash = canonical_json_hash({"question": str(question or "")})
+                frozen_role = frozen_roles.get(question_hash)
+                if frozen_role is None:
+                    raise ValueError("missing_frozen_role_contract")
+                role_validation = validate_query_role_contract(
+                    frozen_role.get("contract")
+                )
+                role_audit = dict(frozen_role.get("audit") or {})
+                role_audit["frozen_source_calls"] = int(
+                    role_audit.get("calls", 0) or 0
+                )
+                role_audit["calls"] = 0
+                role_audit["frozen_reuse"] = True
+                role_reused = True
+        except Exception as exc:
+            metadata.update({
+                "certa_egra_role_contract_called": True,
+                "certa_egra_role_contract_errors": [f"generation_exception:{exc}"],
+                "cera_planner_skipped_reason": "query_role_generation_exception",
+            })
+            return [], metadata, None
+        metadata.update({
+            "certa_egra_role_contract_called": True,
+            "certa_egra_role_contract_valid": bool(role_validation.ok),
+            "certa_egra_role_contract_parse_ok": bool(role_validation.parse_ok),
+            "certa_egra_role_contract_errors": list(role_validation.errors),
+            "certa_egra_role_contract": dict(role_validation.normalized_payload),
+            "certa_egra_role_contract_audit": role_audit,
+            "certa_egra_role_contract_reused": role_reused,
+        })
+        if not role_validation.ok:
+            metadata["cera_planner_skipped_reason"] = "invalid_query_role_contract"
+            return [], metadata, None
+        role_contract = role_validation.normalized_payload
+        if not role_contract["supported_by_core_signatures"]:
+            metadata["cera_planner_skipped_reason"] = "unsupported_by_core_signatures"
+            return [], metadata, None
+        allowed_signature_ids = tuple(role_contract["signature_candidates"])
+
+        reference_ids = None
+        selected_cards = None
+        if egra_arm == "C2_EGRA":
+            if not isinstance(table_json, Mapping):
+                metadata["cera_planner_skipped_reason"] = "no_table_json"
+                return [], metadata, None
+            encoder = getattr(args, "_certa_egra_encoder", None)
+            embedding_hash = str(
+                getattr(args, "certa_egra_embedding_file_tree_sha256", "")
+            )
+            if encoder is None:
+                metadata["cera_planner_skipped_reason"] = "no_egra_encoder"
+                return [], metadata, None
+            if len(embedding_hash) != 64:
+                raise ValueError("invalid_certa_egra_embedding_file_tree_sha256")
+            try:
+                catalog_started = time.time()
+                catalog = build_canonical_structural_group_catalog(
+                    graph=graph,
+                    table_json=table_json,
+                )
+                cards = build_structural_evidence_cards(catalog)
+                catalog_seconds = time.time() - catalog_started
+                index_started = time.time()
+                table_sha256 = canonical_json_hash(table_json)
+                index = build_card_index(
+                    cards,
+                    encoder,
+                    parent_sha=EGRA_PARENT_SHA,
+                    table_sha256=table_sha256,
+                    embedding_file_tree_sha256=embedding_hash,
+                )
+                index_seconds = time.time() - index_started
+                retrieval_started = time.time()
+                retrieval = retrieve_structural_cards(
+                    index,
+                    cards,
+                    question=question,
+                    contract=role_contract,
+                    encoder=encoder,
+                )
+                retrieval_seconds = time.time() - retrieval_started
+            except Exception as exc:
+                metadata.update({
+                    "certa_egra_construction_error": str(exc),
+                    "cera_planner_skipped_reason": "egra_construction_error",
+                })
+                return [], metadata, None
+            cards_by_id = {str(card["card_id"]): card for card in cards}
+            selected_cards = [
+                cards_by_id[card_id]
+                for card_id in retrieval["selected_card_ids"]
+            ]
+            reference_ids = retrieval["reference_node_ids"]
+            metadata.update({
+                "certa_egra_table_sha256": table_sha256,
+                "certa_egra_catalog_sha256": str(catalog["catalog_sha256"]),
+                "certa_egra_card_count": len(cards),
+                "certa_egra_active_card_count": len(index["card_ids"]),
+                "certa_egra_structural_cards": selected_cards,
+                "certa_egra_index_cache_key": str(index["cache_key"]),
+                "certa_egra_index_sha256": str(index["index_sha256"]),
+                "certa_egra_retrieval": retrieval,
+                "certa_egra_catalog_seconds": catalog_seconds,
+                "certa_egra_index_seconds": index_seconds,
+                "certa_egra_retrieval_seconds": retrieval_seconds,
+                "certa_egra_index_cache_hit": False,
+            })
+        view_build = build_role_aligned_planner_view(
+            question=question,
+            graph=graph,
+            table_json=table_json,
+            contract=role_contract,
+            reference_node_ids=reference_ids,
+            selected_cards=selected_cards,
+        )
+        if not view_build.eligible:
+            metadata["cera_planner_skipped_reason"] = view_build.reason
+            return [], metadata, None
+        view = view_build.view
+    elif proposal_aware:
         view = build_proposal_aware_diagnostic_planner_view(
             question=question,
             graph=graph,
@@ -896,7 +1091,6 @@ def _run_typed_derivation_planner(
             allowed_signature_ids=allowed_signature_ids,
         )
     prompt = build_typed_derivation_planner_prompt(view, proposal_aware=proposal_aware)
-    planner_contract = str(getattr(args, "cera_planner_contract", "legacy_v1") if args is not None else "legacy_v1")
     rcpc_enabled = planner_contract in {"rcpc_v1", "rcpc_signature_v2"}
     signature_contract_enabled = planner_contract == "rcpc_signature_v2"
     reference_domain = planner_reference_domain(view)
@@ -1094,6 +1288,60 @@ def _run_typed_derivation_planner(
         "cera_round12_semantic_type_audit_records": _semantic_type_audit_records(closure),
     })
     return list(closure.executable_derivations), metadata, closure
+
+
+def run_egra_constructor_shadow(
+    *,
+    question: str,
+    original_answer: str,
+    graph: Any,
+    table_json: Mapping[str, Any],
+    generator: Any,
+    args: Any,
+) -> Dict[str, Any]:
+    """Run only role/retrieval/Planner/closure for a frozen EGRA arm."""
+    if not str(original_answer or "").strip():
+        return {
+            "certa_egra_construction_only": True,
+            "certa_egra_intervention_generated": False,
+            "certa_egra_decision_executed": False,
+            "cera_planner_called": False,
+            "cera_planner_skipped_reason": "B0_INVALID",
+        }
+    pre_contract = build_pre_evidence_query_contract(
+        question=question,
+        question_frame=None,
+        result_context={},
+        initial_answer=original_answer,
+        graph_stats=graph.stats() if hasattr(graph, "stats") else None,
+    )
+    _derivations, metadata, closure = _run_typed_derivation_planner(
+        question=question,
+        graph=graph,
+        table_json=table_json,
+        pre_contract=pre_contract,
+        generator=generator,
+        args=args,
+        original_answer=original_answer,
+    )
+    metadata.update({
+        "certa_egra_construction_only": True,
+        "certa_egra_intervention_generated": False,
+        "certa_egra_decision_executed": False,
+    })
+    if closure is not None:
+        support = partition_support(
+            closure,
+            initial_proposal_answer=original_answer,
+        )
+        metadata.update({
+            "cera_round9_partition_original_count": len(support.original_support),
+            "cera_round9_partition_alternative_count": len(support.alternative_support),
+            "cera_round9_partition_disjoint": bool(support.disjoint),
+            "cera_round9_partition_exhaustive": bool(support.exhaustive),
+            "cera_round9_partition_equivalence_policy": support.equivalence_policy,
+        })
+    return metadata
 
 
 def call_cera_agent(

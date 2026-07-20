@@ -27,6 +27,7 @@ v9.0 多卡改动:
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import math
@@ -133,7 +134,10 @@ from experiment_logging import (
 from certa.derivations.answer_equivalence import inference_answer_key
 from certa.evaluation.repair_outcomes import aggregate_repair_outcomes, compute_repair_outcome
 from certa.diagnostics.heuristic_audit import summarize_legacy_heuristics
-from certa.repair.causal_epistemic_agent import run_causal_epistemic_repair
+from certa.repair.causal_epistemic_agent import (
+    run_causal_epistemic_repair,
+    run_egra_constructor_shadow,
+)
 from certa.repair.method_context import (
     PosthocEvaluationRecord,
     build_method_inference_context,
@@ -2734,6 +2738,11 @@ def finalize_after_llm(
     llm_logprobs = gen_output.get("logprobs")
     result["llm_generation_seconds"] = float(gen_output.get("generation_seconds", 0.0) or 0.0)
     result["generated_token_count"] = int(gen_output.get("generated_token_count", 0) or 0)
+    if gen_output.get("certa_egra_frozen_b0_reused"):
+        result["certa_egra_frozen_b0_reused"] = True
+        result["certa_egra_frozen_b0_sha256"] = str(
+            gen_output.get("certa_egra_frozen_b0_sha256") or ""
+        )
     result["generator_backend"] = gen_output.get(
         "generator_backend",
         getattr(args, "generator_backend", "vllm"),
@@ -2788,6 +2797,36 @@ def finalize_after_llm(
             result.update(hceg_stats)
         except Exception as e:
             raise RuntimeError("HCEG construction/evidence retrieval failed") from e
+
+    egra_arm = str(getattr(args, "certa_egra_arm", "") or "")
+    if egra_arm:
+        if mode != "full_cert":
+            raise RuntimeError("CERTA-EGRA construction requires full_cert mode")
+        graph, evidence = _require_hceg_state(graph, evidence, "CERTA-EGRA construction")
+        result.update(run_egra_constructor_shadow(
+            question=question,
+            original_answer=llm_answer,
+            graph=graph,
+            table_json=table_json,
+            generator=generator,
+            args=args,
+        ))
+        result.update({
+            "certa_egra_construction_only": True,
+            "certa_egra_intervention_generated": False,
+            "certa_egra_decision_executed": False,
+            "final_answer": llm_answer,
+            "answer_source": "black_box_frozen_llm",
+            "final_confidence": llm_confidence,
+            "b0_mutation": False,
+        })
+        result["post_llm_finalize_seconds"] = time.time() - finalize_start
+        result["pipeline_recorded_seconds"] = (
+            float(result.get("non_llm_preparation_seconds", 0.0) or 0.0)
+            + float(result.get("llm_generation_seconds", 0.0) or 0.0)
+            + float(result.get("post_llm_finalize_seconds", 0.0) or 0.0)
+        )
+        return result
 
     # --- Step 4: 结构干预 + SCCI (full_cert 模式) ---
     if mode == "full_cert":
@@ -3411,7 +3450,29 @@ def process_single(
     prepared = prepare_non_llm_steps(item, table_json, args, mode)
 
     gen_output = {"text": "", "logprobs": None}
-    if generator is not None:
+    frozen_b0_by_id = getattr(args, "_certa_egra_frozen_b0_by_id", None)
+    if frozen_b0_by_id is not None:
+        if str(getattr(args, "certa_egra_arm", "") or "") == "C0_FLAT_SCHEMA_CURRENT":
+            raise ValueError("c0_forbids_frozen_b0_reuse")
+        sample_id = str(item.get("id") or "")
+        frozen = frozen_b0_by_id.get(sample_id)
+        if frozen is None:
+            raise ValueError(f"missing_frozen_b0:{sample_id}")
+        if str(frozen.get("table_id") or "") != str(item.get("table_id") or ""):
+            raise ValueError(f"frozen_b0_table_mismatch:{sample_id}")
+        question_sha256 = canonical_json_hash({"question": str(item.get("question") or "")})
+        if str(frozen.get("question_sha256") or "") != question_sha256:
+            raise ValueError(f"frozen_b0_question_mismatch:{sample_id}")
+        gen_output = dict(frozen.get("generation") or {})
+        if not str(gen_output.get("text") or "").strip():
+            raise ValueError(f"invalid_frozen_b0_generation:{sample_id}")
+        gen_output.update({
+            "generation_seconds": 0.0,
+            "generated_token_count": 0,
+            "certa_egra_frozen_b0_reused": True,
+            "certa_egra_frozen_b0_sha256": canonical_json_hash(frozen),
+        })
+    elif generator is not None:
         if getattr(args, "skip_overlong_primary", False):
             _keep, _prompts, skipped, _audit = filter_prompts_by_context_budget(
                 generator=generator,
@@ -6013,6 +6074,16 @@ def run_pipeline(args: argparse.Namespace) -> None:
             "require_counterfactual_reference": bool(getattr(args, "cera_require_counterfactual_reference", True)),
             "allow_support_only": bool(getattr(args, "cera_allow_support_only", False)),
         },
+        "certa_egra": {
+            "arm": str(getattr(args, "certa_egra_arm", "") or ""),
+            "embedding_device": str(
+                getattr(args, "certa_egra_embedding_device", "cuda:0")
+            ),
+            "embedding_file_tree_sha256": str(
+                getattr(args, "certa_egra_embedding_file_tree_sha256", "")
+            ),
+            "final_answer_frozen": True,
+        },
         "main_cert_profile_clean_contract": {
             "structural_certificate_gate_enabled": (
                 getattr(args, "operation_commit_gate_diagnostics", False)
@@ -6138,6 +6209,29 @@ def run_pipeline(args: argparse.Namespace) -> None:
     if args.limit is not None:
         items = items[:args.limit]
     logger.info(f"Loaded {len(items)} items")
+    egra_arm = str(getattr(args, "certa_egra_arm", "") or "")
+    frozen_b0_file = str(getattr(args, "certa_egra_frozen_b0_file", "") or "")
+    frozen_role_file = str(
+        getattr(args, "certa_egra_frozen_role_file", "") or ""
+    )
+    if egra_arm == "C0_FLAT_SCHEMA_CURRENT" and frozen_b0_file:
+        raise ValueError("c0_forbids_frozen_b0_reuse")
+    if egra_arm == "C0_FLAT_SCHEMA_CURRENT" and frozen_role_file:
+        raise ValueError("c0_forbids_frozen_role_contract")
+    if egra_arm in {"C1_ROLE_ALIGNED_FLAT", "C2_EGRA"}:
+        if not frozen_b0_file:
+            raise ValueError("non_c0_egra_arm_requires_frozen_b0_file")
+        if not frozen_role_file:
+            raise ValueError("role_aligned_egra_arm_requires_frozen_role_file")
+        if getattr(args, "batch_inference", False):
+            raise ValueError("certa_egra_frozen_b0_requires_nonbatch_execution")
+        args._certa_egra_frozen_b0_by_id = _load_certa_egra_frozen_b0(
+            Path(frozen_b0_file),
+            items,
+        )
+        args._certa_egra_frozen_role_by_question_hash = (
+            _load_certa_egra_frozen_roles(Path(frozen_role_file), items)
+        )
     validate_graph_required_table_source(args, items)
 
     # 初始化生成器
@@ -6235,6 +6329,9 @@ def run_pipeline(args: argparse.Namespace) -> None:
                 seed=args.seed,
             )
             logger.info(f"Model loaded. Detected EOS tokens: {generator.eos}")
+
+    if not args.dry_run:
+        _initialize_certa_egra_runtime(args)
 
     write_json(
         os.path.join(args.output_dir, "run_metadata.json"),
@@ -8699,6 +8796,155 @@ def compute_full_metrics(predictions: List[Dict[str, Any]], logger) -> Dict[str,
 # 参数解析
 # ---------------------------------------------------------------------------
 
+CERTA_EGRA_EMBEDDING_FILE_TREE_SHA256 = (
+    "f7b400dfd56a18cacb3f584d097722aba842a961a0b57448c915f9166d5eb521"
+)
+CERTA_EGRA_EMBEDDING_FILE_SHA256 = {
+    "config.json": "e42d98d0c211928d788467aa951000391017f647c76ca8ce2ef6dd8d0c9ce5ca",
+    "model.safetensors": "020afdebf2762b29fcaf286629a96c3b3b65af241f6a08226b1cfee60a21def6",
+    "sentencepiece.bpe.model": "cfc8146abe2a0488e9e2a0c56de7952f7c11ab059eca145a0a727afce0db2865",
+    "special_tokens_map.json": "06e405a36dfe4b9604f484f6a1e619af1a7f7d09e34a8555eb0b77b66318067f",
+    "tokenizer.json": "62c24cdc13d4c9952d63718d6c9fa4c287974249e16b7ade6d5a85e7bbb75626",
+    "tokenizer_config.json": "efb5c0d09722e5fe59a462cd2a9976ee216d55b037597d997cd3fe833216da15",
+}
+
+
+def _load_certa_egra_frozen_b0(
+    path: Path,
+    items: Sequence[Mapping[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    rows = read_jsonl(str(path))
+    by_id: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        sample_id = str(row.get("sample_id") or "")
+        if row.get("schema_version") != "certa_egra_b0_freeze_v1":
+            raise ValueError(f"frozen_b0_schema_mismatch:{sample_id}")
+        if not sample_id or sample_id in by_id:
+            raise ValueError(f"frozen_b0_duplicate_or_empty_id:{sample_id}")
+        generation = row.get("generation") or {}
+        transport = {
+            "black_box_api": generation.get("black_box_api"),
+            "api_model": generation.get("api_model"),
+            "api_base_url": generation.get("api_base_url"),
+            "generator_backend": generation.get("generator_backend"),
+            "chat_template_kwargs": generation.get("chat_template_kwargs"),
+        }
+        if transport != {
+            "black_box_api": True,
+            "api_model": "Qwen3-8B",
+            "api_base_url": "http://127.0.0.1:30338/v1",
+            "generator_backend": "vllm_chat",
+            "chat_template_kwargs": {"enable_thinking": False},
+        }:
+            raise ValueError(f"frozen_b0_transport_mismatch:{sample_id}")
+        by_id[sample_id] = dict(row)
+    expected_ids = {str(item.get("id") or "") for item in items}
+    if not expected_ids.issubset(by_id):
+        raise ValueError("frozen_b0_sample_set_mismatch")
+    for item in items:
+        sample_id = str(item.get("id") or "")
+        row = by_id[sample_id]
+        if str(row.get("table_id") or "") != str(item.get("table_id") or ""):
+            raise ValueError(f"frozen_b0_table_mismatch:{sample_id}")
+        expected_question_hash = canonical_json_hash({
+            "question": str(item.get("question") or "")
+        })
+        if str(row.get("question_sha256") or "") != expected_question_hash:
+            raise ValueError(f"frozen_b0_question_mismatch:{sample_id}")
+        if not str((row.get("generation") or {}).get("text") or "").strip():
+            raise ValueError(f"frozen_b0_empty_generation:{sample_id}")
+    return {sample_id: by_id[sample_id] for sample_id in expected_ids}
+
+
+def _load_certa_egra_frozen_roles(
+    path: Path,
+    items: Sequence[Mapping[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    rows = read_jsonl(str(path))
+    by_id: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        sample_id = str(row.get("sample_id") or "")
+        if row.get("schema_version") != "certa_egra_role_freeze_row_v1":
+            raise ValueError(f"frozen_role_schema_mismatch:{sample_id}")
+        if not sample_id or sample_id in by_id:
+            raise ValueError(f"frozen_role_duplicate_or_empty_id:{sample_id}")
+        audit = row.get("audit") or {}
+        if {
+            "model": audit.get("model"),
+            "backend": audit.get("backend"),
+            "api_base_url": audit.get("api_base_url"),
+            "thinking": audit.get("thinking"),
+        } != {
+            "model": "Qwen3-8B",
+            "backend": "vllm_chat",
+            "api_base_url": "http://127.0.0.1:30338/v1",
+            "thinking": {"enable_thinking": False},
+        }:
+            raise ValueError(f"frozen_role_transport_mismatch:{sample_id}")
+        by_id[sample_id] = dict(row)
+    expected_ids = {str(item.get("id") or "") for item in items}
+    if not expected_ids.issubset(by_id):
+        raise ValueError("frozen_role_sample_set_mismatch")
+    by_question_hash: Dict[str, Dict[str, Any]] = {}
+    for item in items:
+        sample_id = str(item.get("id") or "")
+        row = by_id[sample_id]
+        if str(row.get("table_id") or "") != str(item.get("table_id") or ""):
+            raise ValueError(f"frozen_role_table_mismatch:{sample_id}")
+        question_hash = canonical_json_hash({
+            "question": str(item.get("question") or "")
+        })
+        if str(row.get("question_sha256") or "") != question_hash:
+            raise ValueError(f"frozen_role_question_mismatch:{sample_id}")
+        frozen = {
+            "contract": dict(row.get("contract") or {}),
+            "audit": dict(row.get("audit") or {}),
+        }
+        prior = by_question_hash.get(question_hash)
+        if prior is not None and prior != frozen:
+            raise ValueError(f"frozen_role_duplicate_question_drift:{question_hash}")
+        by_question_hash[question_hash] = frozen
+    return by_question_hash
+
+
+def _verify_certa_egra_embedding_files() -> Dict[str, str]:
+    root = Path("/home/common_data/llm/intfloat/multilingual-e5-large")
+    observed = {}
+    for name, expected in CERTA_EGRA_EMBEDDING_FILE_SHA256.items():
+        path = root / name
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        observed[name] = digest.hexdigest()
+        if observed[name] != expected:
+            raise ValueError(f"certa_egra_embedding_file_sha256_mismatch:{name}")
+    return observed
+
+
+def _initialize_certa_egra_runtime(args: argparse.Namespace) -> None:
+    """Load the one frozen C2 encoder; C0/C1 have no retrieval dependency."""
+    arm = str(getattr(args, "certa_egra_arm", "") or "")
+    if arm != "C2_EGRA":
+        return
+    device = str(getattr(args, "certa_egra_embedding_device", "") or "")
+    if device != "cuda:0":
+        raise ValueError(f"certa_egra_embedding_device_mismatch:{device}")
+    if os.environ.get("CUDA_VISIBLE_DEVICES") != "4":
+        raise ValueError("certa_egra_requires_CUDA_VISIBLE_DEVICES_4")
+    file_tree_sha256 = str(
+        getattr(args, "certa_egra_embedding_file_tree_sha256", "") or ""
+    )
+    if file_tree_sha256 != CERTA_EGRA_EMBEDDING_FILE_TREE_SHA256:
+        raise ValueError("certa_egra_embedding_file_tree_sha256_mismatch")
+    args._certa_egra_embedding_file_sha256 = _verify_certa_egra_embedding_files()
+    from certa.egra.retrieval import FrozenE5Encoder
+
+    started = time.time()
+    args._certa_egra_encoder = FrozenE5Encoder(device=device)
+    args._certa_egra_model_load_seconds = time.time() - started
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="CSCR Pipeline - 统一实验管线",
@@ -9013,6 +9259,41 @@ def parse_args() -> argparse.Namespace:
                         default=False,
                         dest="main_cert_profile",
                         help="启用论文主线结构证书 profile 审计：只允许 E67/E65.4 boolean certificate gate 改写，旧 fallback/路由/normalizer 必须关闭。")
+    parser.add_argument(
+        "--certa-egra-arm",
+        choices=["", "C0_FLAT_SCHEMA_CURRENT", "C1_ROLE_ALIGNED_FLAT", "C2_EGRA"],
+        default=os.environ.get("CERTA_EGRA_ARM", ""),
+        dest="certa_egra_arm",
+        help="Frozen CERTA-EGRA constructor arm; empty preserves the historical path.",
+    )
+    parser.add_argument(
+        "--certa-egra-embedding-device",
+        choices=["cuda:0"],
+        default=os.environ.get("CERTA_EGRA_EMBEDDING_DEVICE", "cuda:0"),
+        dest="certa_egra_embedding_device",
+        help="Logical device for the frozen multilingual-E5 C2 encoder.",
+    )
+    parser.add_argument(
+        "--certa-egra-embedding-file-tree-sha256",
+        default=os.environ.get(
+            "CERTA_EGRA_EMBEDDING_FILE_TREE_SHA256",
+            CERTA_EGRA_EMBEDDING_FILE_TREE_SHA256,
+        ),
+        dest="certa_egra_embedding_file_tree_sha256",
+        help="Frozen local multilingual-E5 file-tree identity.",
+    )
+    parser.add_argument(
+        "--certa-egra-frozen-b0-file",
+        default=os.environ.get("CERTA_EGRA_FROZEN_B0_FILE", ""),
+        dest="certa_egra_frozen_b0_file",
+        help="Exact C0 generation freeze reused by C1/C2; C0 must leave this empty.",
+    )
+    parser.add_argument(
+        "--certa-egra-frozen-role-file",
+        default=os.environ.get("CERTA_EGRA_FROZEN_ROLE_FILE", ""),
+        dest="certa_egra_frozen_role_file",
+        help="Question-only role freeze reused by C1/C2; C0 must leave this empty.",
+    )
     parser.add_argument("--enable-cera-repair",
                         action="store_true",
                         default=_env_flag(["CERTA_ENABLE_CERTIFICATE_REPAIR", "CSCR_ENABLE_CERTIFICATE_REPAIR"], False),

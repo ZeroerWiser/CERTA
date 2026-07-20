@@ -91,12 +91,23 @@ def build_typed_derivation_planner_prompt(
         forbidden_key = _first_forbidden_key(view, FORBIDDEN_PROPOSAL_BLIND_KEYS)
         if forbidden_key:
             raise ValueError(f"forbidden_planner_request_key:{forbidden_key}")
+    ontology = view.get("operation_ontology") or {}
+    declared_signature_values = ontology.get("signature_ids")
+    declared_signature_ids = (
+        sorted(str(item) for item in declared_signature_values)
+        if isinstance(declared_signature_values, list)
+        else sorted(OPERATION_SIGNATURES)
+    )
+    view_signature_variants = ontology.get("signature_variants") or {}
     instructions = {
         "task": "Return typed derivation plan skeletons. Role references must use only schema_nodes[*].node_id values from the Planner view.",
         "operation_contract_version": OPERATION_CONTRACT_VERSION,
         "operation_signature_variants": {
-            signature_id: operation_signature_telemetry(signature_id)
-            for signature_id in sorted(OPERATION_SIGNATURES)
+            signature_id: dict(
+                view_signature_variants.get(signature_id)
+                or operation_signature_telemetry(signature_id)
+            )
+            for signature_id in declared_signature_ids
         },
         "role_domain_rule": (
             "role_bindings contain one exact value of the signature-declared role shape. "
@@ -148,15 +159,35 @@ def build_typed_planner_response_schema(
     """Build the strict per-view RCPC JSON Schema used by constrained generation."""
     reference_ids = planner_reference_domain(view)
     ontology = view.get("operation_ontology") or {}
-    declared_operations = {str(item) for item in (ontology.get("operation_families") or FINAL_SUPPORTED_OPERATIONS)}
-    declared_signatures = {str(item) for item in (ontology.get("signature_ids") or OPERATION_SIGNATURES)}
+    operation_values = ontology.get("operation_families")
+    signature_values = ontology.get("signature_ids")
+    declared_operations = {
+        str(item) for item in (
+            operation_values if isinstance(operation_values, list) else FINAL_SUPPORTED_OPERATIONS
+        )
+    }
+    declared_signatures = {
+        str(item) for item in (
+            signature_values if isinstance(signature_values, list) else OPERATION_SIGNATURES
+        )
+    }
     signatures = [
         signature
         for signature_id, signature in OPERATION_SIGNATURES.items()
         if signature_id in declared_signatures and signature.operation_family in declared_operations
     ]
-    domains = ontology.get("answer_domains") or sorted(ANSWER_DOMAINS - {"UNKNOWN"})
-    projections = ontology.get("projection_operators") or sorted(PROJECTION_OPERATORS - {"UNKNOWN"})
+    domain_values = ontology.get("answer_domains")
+    projection_values = ontology.get("projection_operators")
+    domains = (
+        domain_values
+        if isinstance(domain_values, list)
+        else sorted(ANSWER_DOMAINS - {"UNKNOWN"})
+    )
+    projections = (
+        projection_values
+        if isinstance(projection_values, list)
+        else sorted(PROJECTION_OPERATORS - {"UNKNOWN"})
+    )
     unresolved = {"type": "array", "items": {"type": "string"}}
     query_variants = []
     for signature in signatures:
@@ -246,7 +277,7 @@ def _schema_ids(view: Mapping[str, Any]) -> set[str]:
 def _allowed_from_view(view: Mapping[str, Any], key: str, fallback: set[str]) -> set[str]:
     ontology = view.get("operation_ontology") or {}
     values = ontology.get(key)
-    if isinstance(values, list) and values:
+    if isinstance(values, list):
         return {str(item) for item in values}
     return set(fallback)
 
@@ -406,6 +437,25 @@ def validate_typed_planner_output(
     elif query_contract is None:
         fatal_errors.append(
             "invalid_query_projection_domain_pair:"
+            f"{query_operation}:{query_projection}:{query_domain}"
+        )
+    declared_signature_ids = _allowed_from_view(
+        view,
+        "signature_ids",
+        set(OPERATION_SIGNATURES),
+    )
+    declared_query_tuples = {
+        (
+            OPERATION_SIGNATURES[signature_id].operation_family,
+            OPERATION_SIGNATURES[signature_id].projection_operator,
+            OPERATION_SIGNATURES[signature_id].answer_domain,
+        )
+        for signature_id in declared_signature_ids
+        if signature_id in OPERATION_SIGNATURES
+    }
+    if (query_operation, query_projection, query_domain) not in declared_query_tuples:
+        fatal_errors.append(
+            "query_projection_domain_tuple_not_declared:"
             f"{query_operation}:{query_projection}:{query_domain}"
         )
 
