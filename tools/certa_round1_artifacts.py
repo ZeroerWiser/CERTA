@@ -20,7 +20,7 @@ for import_root in (REPO_ROOT, TOOLS_ROOT):
 
 import jsonschema
 
-from certa.operations.contracts import OPERATION_SIGNATURES
+from certa.operations.contracts import LOOKUP_ACTIVE_SIGNATURE_IDS
 from certa.round1.contracts import (
     build_blind_sample_master_row,
     select_table_disjoint_cohorts,
@@ -33,7 +33,8 @@ PACK_ROOT = REPO_ROOT.parent / "certa_goal_packs" / "CERTA_R1_ACTIVE_PATH_CONTRA
 DEFAULT_DATASET = REPO_ROOT.parent / "CausalityAwareTableQA/dataset/hitab/test_samples_clean.jsonl"
 DEFAULT_TABLE_ROOT = REPO_ROOT.parent / "CausalityAwareTableQA/dataset/hitab/tables/raw"
 SEED = 20260720
-BLIND_RUNTIME_FIELDS = ("id", "table_id", "table_source", "question", "aggregation")
+ACTIVE_SIGNATURE_IDS = LOOKUP_ACTIVE_SIGNATURE_IDS
+BLIND_RUNTIME_FIELDS = ("id", "table_id", "table_source", "question")
 
 
 def sha256_file(path: Path) -> str:
@@ -193,7 +194,7 @@ def prepare_round1(
             "no_legacy_mutation_authority",
             "benign_control_replay",
         ],
-        "signatures": sorted(OPERATION_SIGNATURES),
+        "signatures": list(ACTIVE_SIGNATURE_IDS),
     }
     write_json(output_root / "freeze/SUPPORTED_OPERATION_SIGNATURES.json", supported)
     profile_path = REPO_ROOT / "configs/profiles/certa_round1_shadow.env"

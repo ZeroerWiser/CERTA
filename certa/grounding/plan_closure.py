@@ -682,6 +682,7 @@ def _prepare_plan_assignment_space(
     *,
     plan: Mapping[str, Any],
     graph: HCEG,
+    allowed_signature_ids: Optional[Sequence[str]] = None,
 ) -> _PlanAssignmentSpace:
     normalized_plan = dict(plan)
     raw_domains = plan.get("role_domains") or {}
@@ -716,6 +717,23 @@ def _prepare_plan_assignment_space(
                 operation_family=operation_family,
                 outcome=ClosureOutcome.STRUCTURALLY_INVALID,
                 failure_reasons=[f"unsupported_operation_family:{operation_family}"],
+                comparison_polarity=comparison_polarity,
+                projection_operator=projection_operator,
+                answer_domain=answer_domain,
+            ),
+        )
+    if allowed_signature_ids is not None and contract.signature_id not in set(allowed_signature_ids):
+        return _PlanAssignmentSpace(
+            plan=plan,
+            plan_id=plan_id,
+            operation_family=operation_family,
+            invalid_assignment=_invalid_assignment(
+                plan_id=plan_id,
+                operation_family=operation_family,
+                outcome=ClosureOutcome.STRUCTURALLY_INVALID,
+                failure_reasons=[f"signature_outside_active_allowlist:{contract.signature_id}"],
+                signature_id=contract.signature_id,
+                semantic_result_role=contract.semantic_result_role,
                 comparison_polarity=comparison_polarity,
                 projection_operator=projection_operator,
                 answer_domain=answer_domain,
@@ -825,11 +843,16 @@ def build_plan_closure(
     graph: HCEG,
     *,
     max_assignments: Optional[int] = None,
+    allowed_signature_ids: Optional[Sequence[str]] = None,
 ) -> PlanClosure:
     """Construct the complete finite operation-typed closure for a Planner payload."""
     plans, planner_version, closure_plan_id = _payload_plans(payload)
     spaces = tuple(
-        _prepare_plan_assignment_space(plan=plan, graph=graph)
+        _prepare_plan_assignment_space(
+            plan=plan,
+            graph=graph,
+            allowed_signature_ids=allowed_signature_ids,
+        )
         for plan in plans
     )
     rows: list[Tuple[GroundedAssignment, Optional[ExecutableDerivation]]] = []

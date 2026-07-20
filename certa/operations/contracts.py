@@ -199,6 +199,10 @@ OPERATION_SIGNATURES: Dict[str, OperationSignatureVariant] = {
     )
 }
 
+# Final method-round authority. The registered ontology remains available to
+# historical callers; the active Round-2 path must pass this allowlist through.
+LOOKUP_ACTIVE_SIGNATURE_IDS: Tuple[str, ...] = ("LOOKUP_VALUE_SCALAR",)
+
 
 EXCLUDED_OPERATION_SIGNATURES = {
     "PAIR_COMPARE_ENTITY": ExcludedOperationSignature(

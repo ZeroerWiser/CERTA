@@ -5,13 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 from enum import Enum
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional, Sequence
 
 from graph_builder import EdgeType, HCEG, NodeType
 
-from certa.derivations.schema import ANSWER_DOMAINS, PROJECTION_OPERATORS
 from certa.operations.contracts import (
-    FINAL_SUPPORTED_OPERATIONS,
     OPERATION_SIGNATURES,
     operation_signature_telemetry,
 )
@@ -510,6 +508,7 @@ def build_proposal_blind_planner_view(
     query_contract: Any = None,
     include_table_values: bool,
     legacy_query_semantics_mode: str = "active",
+    allowed_signature_ids: Optional[Sequence[str]] = None,
 ) -> Dict[str, Any]:
     """Build a Planner view whose public projection cannot receive a proposal."""
     shape = _table_shape(table_json)
@@ -518,6 +517,13 @@ def build_proposal_blind_planner_view(
         raise ValueError(
             f"unknown_legacy_query_semantics_mode:{legacy_query_semantics_mode}"
         )
+    signature_ids = tuple(sorted(set(
+        str(item) for item in (allowed_signature_ids or OPERATION_SIGNATURES)
+    )))
+    unknown_signatures = sorted(set(signature_ids) - set(OPERATION_SIGNATURES))
+    if unknown_signatures:
+        raise ValueError(f"unknown_allowed_signature_ids:{','.join(unknown_signatures)}")
+    signatures = [OPERATION_SIGNATURES[item] for item in signature_ids]
     view: Dict[str, Any] = {
         "planner_view_version": PLANNER_VIEW_VERSION,
         "question": str(question or ""),
@@ -531,14 +537,14 @@ def build_proposal_blind_planner_view(
             "col_count": max(0, shape["cols"] - shape["left_header_cols"]),
         },
         "operation_ontology": {
-            "operation_families": sorted(FINAL_SUPPORTED_OPERATIONS),
-            "signature_ids": sorted(OPERATION_SIGNATURES),
+            "operation_families": sorted({item.operation_family for item in signatures}),
+            "signature_ids": list(signature_ids),
             "signature_variants": {
                 signature_id: operation_signature_telemetry(signature_id)
-                for signature_id in sorted(OPERATION_SIGNATURES)
+                for signature_id in signature_ids
             },
-            "projection_operators": sorted(PROJECTION_OPERATORS - {"UNKNOWN"}),
-            "answer_domains": sorted(ANSWER_DOMAINS - {"UNKNOWN"}),
+            "projection_operators": sorted({item.projection_operator for item in signatures}),
+            "answer_domains": sorted({item.answer_domain for item in signatures}),
         },
     }
     if legacy_query_semantics_mode == "active":

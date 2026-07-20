@@ -276,7 +276,14 @@ def _registry_metrics(contrast: Mapping[str, Any]) -> Dict[str, Any]:
         if _answer_key(derivation.get("executed_answer")) != _answer_key(payload.get("executed_answer")):
             outside += 1
     states = contrast.get("states") or {}
-    complete = bool(states.get("contrast_registry_complete", False)) if isinstance(states, Mapping) else False
+    complete = bool(
+        isinstance(states, Mapping)
+        and states.get("contrast_registry_complete", False)
+        and registry.get("hypothesis_records")
+        and registry.get("derivation_records")
+        and registry.get("evidence_records")
+        and registry.get("intervention_records")
+    )
     return {
         "complete": complete,
         "outside_answer_count": outside,
@@ -360,7 +367,7 @@ def build_blind_sample_master_row(
         "common_evaluable_intervention_count": intervention["common_evaluable"],
         "separating_intervention_count": intervention["separating"],
         "intervention_status_counts": intervention["status_counts"],
-        "registry_complete": registry["complete"] or bool(record.get("cera_round8_contrast_registry_complete")),
+        "registry_complete": registry["complete"],
         "registry_outside_answer_count": registry["outside_answer_count"],
         "registry_hypothesis_count": registry["hypothesis_count"],
         "registry_derivation_count": registry["derivation_count"],

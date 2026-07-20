@@ -1,6 +1,7 @@
 """Targeted P0-1..P0-5 validity reproducers for the final lookup-only round."""
 
 import ast
+import inspect
 import json
 import unittest
 from pathlib import Path
@@ -13,13 +14,18 @@ from executor import ExecutorResult, OperationType
 
 from certa.derivations.contrast import build_compact_behavioral_contrast_v3
 from certa.grounding.plan_closure import ClosureOutcome, build_plan_closure
+from certa.planner.compiler import compile_typed_plans_to_derivations
 from certa.planner.schema_view import build_proposal_blind_planner_view
 from certa.planner.typed_planner import (
     build_typed_planner_response_schema,
     validate_typed_planner_output,
 )
 from certa.repair.causal_epistemic_agent import run_causal_epistemic_repair
-from tools.certa_round1_artifacts import _frozen_input
+from certa.round1.contracts import build_blind_sample_master_row
+from tools import certa_round1_artifacts as round_artifacts
+
+
+_frozen_input = round_artifacts._frozen_input
 
 
 LOOKUP_SIGNATURE = "LOOKUP_VALUE_SCALAR"
@@ -79,7 +85,7 @@ def lookup_payload():
     }
 
 
-def lookup_view():
+def lookup_view(*, allowed_signature_ids=None):
     return build_proposal_blind_planner_view(
         question="What is the value for A?",
         graph=lookup_graph(),
@@ -87,12 +93,35 @@ def lookup_view():
         query_contract=None,
         include_table_values=False,
         legacy_query_semantics_mode="audit_only",
+        allowed_signature_ids=allowed_signature_ids,
     )
 
 
 class R2UpstreamP0ValidityTests(unittest.TestCase):
+    def test_p0_1_config_and_analyzer_share_the_lookup_allowlist(self):
+        self.assertEqual(
+            getattr(round_artifacts, "ACTIVE_SIGNATURE_IDS", ()),
+            (LOOKUP_SIGNATURE,),
+        )
+        root = Path(__file__).resolve().parents[1]
+        profile = (root / "configs/profiles/certa_round1_shadow.env").read_text(
+            encoding="utf-8"
+        )
+        runner = (root / "scripts/05_run_round1_shadow.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            'CSCR_CERA_PLANNER_SIGNATURE_ALLOWLIST="LOOKUP_VALUE_SCALAR"',
+            profile,
+        )
+        self.assertIn('--cera-planner-signature-allowlist', runner)
+
     def test_p0_1_active_view_schema_validator_and_closure_are_lookup_only(self):
-        view = lookup_view()
+        self.assertIn(
+            "allowed_signature_ids",
+            inspect.signature(build_proposal_blind_planner_view).parameters,
+        )
+        view = lookup_view(allowed_signature_ids=(LOOKUP_SIGNATURE,))
         ontology = view["operation_ontology"]
         self.assertEqual(ontology["signature_ids"], [LOOKUP_SIGNATURE])
         self.assertEqual(ontology["operation_families"], ["LOOKUP"])
@@ -157,7 +186,14 @@ class R2UpstreamP0ValidityTests(unittest.TestCase):
         )
 
     def test_p0_3_generated_lookup_schema_is_compiler_isomorphic(self):
-        view = lookup_view()
+        view = build_proposal_blind_planner_view(
+            question="What is the value for A?",
+            graph=lookup_graph(),
+            table_json={"texts": [["Name", "Value"], ["A", "42"]]},
+            query_contract=None,
+            include_table_values=False,
+            legacy_query_semantics_mode="audit_only",
+        )
         view["operation_ontology"] = {
             "operation_families": ["LOOKUP"],
             "signature_ids": [LOOKUP_SIGNATURE],
@@ -168,6 +204,11 @@ class R2UpstreamP0ValidityTests(unittest.TestCase):
             "answer_domains": ["SCALAR"],
         }
         payload = lookup_payload()
+        payload["plans"][0].pop("role_bindings")
+        payload["plans"][0]["role_domains"] = {
+            "TARGET_ENTITY": [["entity"]],
+            "TARGET_MEASURE": [["measure"]],
+        }
         schema = build_typed_planner_response_schema(view, require_signature_id=True)
         jsonschema.validate(payload, schema)
 
@@ -175,6 +216,11 @@ class R2UpstreamP0ValidityTests(unittest.TestCase):
             json.dumps(payload), view, require_signature_id=True
         )
         self.assertTrue(validation.ok, validation.errors)
+        compiled = compile_typed_plans_to_derivations(
+            validation.normalized_payload, lookup_graph()
+        )
+        self.assertEqual(compiled.failures, [])
+        self.assertEqual(len(compiled.derivations), 1)
         closure = build_plan_closure(validation.normalized_payload, lookup_graph())
         self.assertEqual(closure.outcome_counts["UNIQUE_EXECUTABLE"], 1)
         self.assertTrue(all(
@@ -220,6 +266,39 @@ class R2UpstreamP0ValidityTests(unittest.TestCase):
         self.assertFalse(contrast.contrast_constructible)
         self.assertFalse(contrast.repair_eligible)
         self.assertIn("registry_incomplete", contrast.unknowns)
+
+    def test_p0_5_analyzer_does_not_trust_vacuous_registry_telemetry(self):
+        row = build_blind_sample_master_row(
+            {
+                "id": "s1",
+                "table_id": "t1",
+                "llm_answer": "42",
+                "final_answer": "42",
+                "cera_stage": "E71_v4_packet_shadow",
+                "cera_shadow_only": True,
+                "cera_planner_called": True,
+                "cera_planner_parse_ok": True,
+                "cera_planner_proposal_visible_to_planner": False,
+                "cera_planner_table_values_visible_to_planner": False,
+                "cera_round8_contrast_registry_complete": True,
+                "cera_evidence_packet": {
+                    "compact_behavioral_contrast_v3": {
+                        "registry": {
+                            "hypothesis_records": [],
+                            "derivation_records": [],
+                            "evidence_records": [],
+                            "intervention_records": [],
+                        },
+                        "states": {"contrast_registry_complete": True},
+                    }
+                },
+            },
+            {"sample_id": "s1", "table_id": "t1", "source_order": 0},
+            dataset_hash="d",
+            cohort_hash="c",
+            supported_signatures=(LOOKUP_SIGNATURE,),
+        )
+        self.assertFalse(row["registry_complete"])
 
 
 if __name__ == "__main__":

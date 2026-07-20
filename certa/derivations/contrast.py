@@ -703,10 +703,19 @@ def build_compact_behavioral_contrast_v3(
     evidence_ids = {item["evidence_id"] for item in registry["evidence_records"]}
     derivation_refs = {item["derivation_ref"] for item in registry["derivation_records"]}
     intervention_refs = {item["intervention_ref"] for item in registry["intervention_records"]}
-    registry_complete = True
+    registry_complete = bool(
+        original_hypotheses
+        and alternative_hypotheses
+        and registry["hypothesis_records"]
+        and registry["derivation_records"]
+        and registry["evidence_records"]
+        and registry["intervention_records"]
+    )
     for hypothesis in original_hypotheses + alternative_hypotheses:
         registry_complete = registry_complete and hypothesis["derivation_ref"] in derivation_refs
+        registry_complete = registry_complete and bool(hypothesis["evidence_refs"])
         registry_complete = registry_complete and set(hypothesis["evidence_refs"]).issubset(evidence_ids)
+        registry_complete = registry_complete and bool(hypothesis["response_vector"])
         registry_complete = registry_complete and set(hypothesis["response_vector"]).issubset(intervention_refs)
 
     unknowns: List[str] = []

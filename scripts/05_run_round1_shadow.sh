@@ -72,6 +72,7 @@ command=(
     --cera-planner-boundary "${planner_boundary}"
     --cera-planner-contract rcpc_signature_v2
     --cera-planner-legacy-query-semantics-mode audit_only
+    --cera-planner-signature-allowlist "${CSCR_CERA_PLANNER_SIGNATURE_ALLOWLIST}"
     --cera-planner-temperature 0
     --cera-planner-max-tokens 512
     --cera-template-version cera_repair_v3

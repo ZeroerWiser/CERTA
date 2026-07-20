@@ -2343,6 +2343,9 @@ def arbitrate(
 
     关键原则: 执行器只有在 LLM 明确不确定时才作为备选。
     """
+    if not str(llm_answer or "").strip():
+        return "", "B0_INVALID", 0.0
+
     if executor_result is None or not executor_result.executor_valid:
         return llm_answer, "llm_only", llm_confidence
 
@@ -5996,6 +5999,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
             "typed_planner_enabled": bool(getattr(args, "cera_enable_typed_planner", False)),
             "planner_boundary": getattr(args, "cera_planner_boundary", "proposal_blind_schema_only"),
             "planner_contract": getattr(args, "cera_planner_contract", "legacy_v1"),
+            "planner_signature_allowlist": getattr(args, "cera_planner_signature_allowlist", ""),
             "planner_legacy_query_semantics_mode": getattr(
                 args,
                 "cera_planner_legacy_query_semantics_mode",
@@ -9078,6 +9082,13 @@ def parse_args() -> argparse.Namespace:
             "and applies compatibility checks; audit_only omits them from the "
             "Planner public request and validation authority."
         ),
+    )
+    parser.add_argument(
+        "--cera-planner-signature-allowlist",
+        choices=["LOOKUP_VALUE_SCALAR"],
+        default="",
+        dest="cera_planner_signature_allowlist",
+        help="Final-round active Planner signature allowlist.",
     )
     parser.add_argument("--cera-planner-temperature",
                         type=float,

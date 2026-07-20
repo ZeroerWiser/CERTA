@@ -36,6 +36,7 @@ from certa.derivations.project import answers_equivalent
 from certa.evidence.chains import build_causal_evidence_packet, stable_packet_hash
 from certa.grounding import build_plan_closure, partition_support
 from certa.logging.cera_audit import build_cera_request_audit, stable_hash_json, stable_hash_text
+from certa.operations.contracts import LOOKUP_ACTIVE_SIGNATURE_IDS
 from certa.planner import (
     CERAPlannerBoundary,
     build_proposal_aware_diagnostic_planner_view,
@@ -310,7 +311,9 @@ def _build_typed_planner_request_audit(
         "output_tokens": output_tokens,
         "constraint_schema_hash": str(constraint_schema_hash or ""),
         "structured_output_mechanism": str(structured_output_mechanism or ""),
+        "signature_allowlist": list((view.get("operation_ontology") or {}).get("signature_ids") or []),
     }
+    audit["signature_allowlist_hash"] = stable_hash_json(audit["signature_allowlist"])
     audit["request_hash"] = stable_hash_json({
         "planner_view_hash": view_hash,
         "prompt_hash": prompt_hash,
@@ -320,6 +323,7 @@ def _build_typed_planner_request_audit(
         "sampling": audit["sampling"],
         "constraint_schema_hash": audit["constraint_schema_hash"],
         "structured_output_mechanism": audit["structured_output_mechanism"],
+        "signature_allowlist_hash": audit["signature_allowlist_hash"],
     })
     return audit
 
@@ -847,6 +851,18 @@ def _run_typed_derivation_planner(
         metadata["cera_planner_skipped_reason"] = "no_graph"
         return [], metadata, None
 
+    configured_allowlist = str(
+        getattr(args, "cera_planner_signature_allowlist", "") if args is not None else ""
+    ).strip()
+    allowed_signature_ids = None
+    if configured_allowlist:
+        expected_allowlist = ",".join(LOOKUP_ACTIVE_SIGNATURE_IDS)
+        if configured_allowlist != expected_allowlist:
+            raise ValueError(
+                f"invalid_cera_planner_signature_allowlist:{configured_allowlist}"
+            )
+        allowed_signature_ids = LOOKUP_ACTIVE_SIGNATURE_IDS
+
     proposal_aware = boundary == CERAPlannerBoundary.PROPOSAL_AWARE_DIAGNOSTIC
     legacy_query_semantics_mode = str(
         getattr(args, "cera_planner_legacy_query_semantics_mode", "active")
@@ -877,6 +893,7 @@ def _run_typed_derivation_planner(
             query_contract=pre_contract,
             include_table_values=(boundary == CERAPlannerBoundary.PROPOSAL_BLIND_VALUE_AWARE),
             legacy_query_semantics_mode=legacy_query_semantics_mode,
+            allowed_signature_ids=allowed_signature_ids,
         )
     prompt = build_typed_derivation_planner_prompt(view, proposal_aware=proposal_aware)
     planner_contract = str(getattr(args, "cera_planner_contract", "legacy_v1") if args is not None else "legacy_v1")
@@ -910,6 +927,12 @@ def _run_typed_derivation_planner(
         "cera_planner_reference_domain_count": len(reference_domain),
         "cera_planner_reference_domain_hash": stable_hash_json(list(reference_domain)),
         "cera_planner_constraint_schema_hash": constraint_schema_hash,
+        "cera_planner_signature_allowlist": list(
+            (view.get("operation_ontology") or {}).get("signature_ids") or []
+        ),
+        "cera_planner_signature_allowlist_hash": stable_hash_json(
+            (view.get("operation_ontology") or {}).get("signature_ids") or []
+        ),
     })
     if stepwise_trace:
         return _run_typed_stepwise_trace(
@@ -1018,7 +1041,11 @@ def _run_typed_derivation_planner(
     if not validation.ok:
         return [], metadata, None
 
-    closure = build_plan_closure(validation.normalized_payload, graph)
+    closure = build_plan_closure(
+        validation.normalized_payload,
+        graph,
+        allowed_signature_ids=allowed_signature_ids,
+    )
     non_executable = [
         {
             "assignment_id": assignment.assignment_id,
@@ -1488,6 +1515,15 @@ def run_causal_epistemic_repair(
     template_version = str(getattr(args, "cera_template_version", DEFAULT_CERA_TEMPLATE_VERSION) if args is not None else DEFAULT_CERA_TEMPLATE_VERSION)
     use_cera_v3 = template_version == CERA_V3_TEMPLATE_VERSION
     enabled = True
+    if not str(original_answer or "").strip():
+        return _base_result(
+            enabled=enabled,
+            stage=stage,
+            shadow_only=shadow_only,
+            reject_reason="B0_INVALID",
+            legacy_heuristic_usage_count=legacy_heuristic_usage_count,
+            metadata={"cera_planner_called": False},
+        )
     if isinstance(result_context, MethodInferenceContext):
         context = result_context.to_dict()
     else:

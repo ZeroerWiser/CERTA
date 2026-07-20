@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from itertools import product
 from typing import Any, Dict, Mapping, Optional, Tuple
 
 from graph_builder import HCEG
@@ -42,6 +43,43 @@ def _role_ids(plan: Mapping[str, Any], role: str) -> list[str]:
     if not isinstance(values, list):
         return []
     return [str(item) for item in values]
+
+
+def _role_options(plan: Mapping[str, Any], role: str) -> list[list[str]]:
+    bound = _role_ids(plan, role)
+    if bound:
+        return [bound]
+    domains = plan.get("role_domains") or {}
+    values = domains.get(role) or [] if isinstance(domains, Mapping) else []
+    if not isinstance(values, list):
+        return []
+    return [
+        [str(item) for item in option]
+        for option in values
+        if isinstance(option, list) and option
+    ]
+
+
+def _lookup_assignments(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    entities = _role_options(plan, "TARGET_ENTITY")
+    measures = _role_options(plan, "TARGET_MEASURE")
+    times = _role_options(plan, "TIME_SCOPE") or [[]]
+    if not entities or not measures:
+        return [plan]
+    assignments = []
+    combinations = list(product(entities, measures, times))
+    for index, (entity, measure, time_scope) in enumerate(combinations):
+        expanded = dict(plan)
+        bindings = dict(plan.get("role_bindings") or {})
+        bindings.update({"TARGET_ENTITY": entity, "TARGET_MEASURE": measure})
+        if time_scope:
+            bindings["TIME_SCOPE"] = time_scope
+        expanded["role_bindings"] = bindings
+        expanded.pop("role_domains", None)
+        if len(combinations) > 1:
+            expanded["plan_id"] = f"{str(plan.get('plan_id') or 'P0')}D{index}"
+        assignments.append(expanded)
+    return assignments
 
 
 def _output_domain(value: Any) -> str:
@@ -138,10 +176,11 @@ def compile_typed_plans_to_derivations(payload: Mapping[str, Any], graph: HCEG) 
         if operation != "LOOKUP":
             failures.append({"plan_id": plan_id, "reason": "unsupported_operation_family", "operation_family": operation})
             continue
-        derivation, failure = _compile_lookup(plan, graph, index)
-        if failure is not None:
-            failures.append(failure)
-            continue
-        if derivation is not None:
-            derivations.append(derivation)
+        for assignment in _lookup_assignments(plan):
+            derivation, failure = _compile_lookup(assignment, graph, index)
+            if failure is not None:
+                failures.append(failure)
+                continue
+            if derivation is not None:
+                derivations.append(derivation)
     return PlanCompilationResult(derivations=derivations, failures=failures)
