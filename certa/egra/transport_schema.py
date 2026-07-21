@@ -11,6 +11,7 @@ from typing import Any, Dict, Mapping
 TRANSPORT_REMOVED_PATHS = (
     "/properties/projection_candidates/uniqueItems",
     "/properties/signature_candidates/uniqueItems",
+    "/allOf",
 )
 
 _UNIQUE_ITEM_PROPERTIES = (
@@ -22,7 +23,7 @@ _UNIQUE_ITEM_PROPERTIES = (
 def build_query_role_transport_schema(
     semantic_schema: Mapping[str, Any],
 ) -> Dict[str, Any]:
-    """Remove only the two frozen backend-incompatible schema keywords."""
+    """Remove only the three frozen backend-incompatible schema paths."""
     transport_schema = deepcopy(dict(semantic_schema))
     properties = transport_schema.get("properties")
     if not isinstance(properties, dict):
@@ -34,6 +35,9 @@ def build_query_role_transport_schema(
                 f"query_role_semantic_unique_items_missing:{property_name}"
             )
         del candidate["uniqueItems"]
+    if "allOf" not in transport_schema:
+        raise ValueError("query_role_semantic_allof_missing")
+    del transport_schema["allOf"]
     return transport_schema
 
 

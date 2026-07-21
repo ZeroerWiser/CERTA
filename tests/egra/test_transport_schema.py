@@ -31,6 +31,7 @@ from tools.certa_egra_transport_probe import (
 REMOVED_PATHS = (
     "/properties/projection_candidates/uniqueItems",
     "/properties/signature_candidates/uniqueItems",
+    "/allOf",
 )
 
 
@@ -51,7 +52,7 @@ def probe(validation, audit, *, version="0.11.0", version_status=200):
 
 
 class TransportSchemaTests(unittest.TestCase):
-    def test_projection_removes_exactly_the_two_frozen_unique_items_paths(self):
+    def test_projection_removes_exactly_the_three_frozen_wire_paths(self):
         semantic = build_query_role_response_schema()
         before = copy.deepcopy(semantic)
         transport = build_query_role_transport_schema(semantic)
@@ -59,7 +60,14 @@ class TransportSchemaTests(unittest.TestCase):
         self.assertEqual(semantic, before)
         del before["properties"]["projection_candidates"]["uniqueItems"]
         del before["properties"]["signature_candidates"]["uniqueItems"]
+        del before["allOf"]
         self.assertEqual(transport, before)
+
+    def test_projection_fails_closed_when_frozen_allof_is_missing(self):
+        semantic = build_query_role_response_schema()
+        del semantic["allOf"]
+        with self.assertRaisesRegex(ValueError, "query_role_semantic_allof_missing"):
+            build_query_role_transport_schema(semantic)
 
     def test_duplicate_arrays_pass_transport_but_fail_full_semantics(self):
         payload = scalar_lookup_payload()
