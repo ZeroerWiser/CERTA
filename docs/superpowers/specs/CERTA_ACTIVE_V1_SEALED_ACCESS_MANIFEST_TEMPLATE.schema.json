@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CERTA Active V1 sealed role-label access manifest template",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "certa_active_v1_sealed_access_manifest_v1"
+    },
+    "labels_path": {
+      "const": "/home/hsh/ME/Table/EMNLP2026/certa_active_v1_sealed/CERTA_ACTIVE_V1_ROLE_SEALED_LABELS/ROLE_SEALED_CONFIRMATION_LABELS.json"
+    },
+    "labels_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "questions_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "questions_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "predictions_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "predictions_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "interface_freeze_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "interface_freeze_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "interface_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "authorized_accessor": {
+      "const": "independent_query_role_semantic_analyzer"
+    },
+    "authorized_purpose": {
+      "const": "sealed_role_gate_only"
+    },
+    "required_order": {
+      "const": [
+        "interface_commit",
+        "prediction_close",
+        "label_access"
+      ]
+    },
+    "label_opened": {
+      "type": "boolean"
+    },
+    "accessed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "schema_version",
+    "labels_path",
+    "labels_sha256",
+    "questions_path",
+    "questions_sha256",
+    "predictions_path",
+    "predictions_sha256",
+    "interface_freeze_path",
+    "interface_freeze_sha256",
+    "interface_commit",
+    "authorized_accessor",
+    "authorized_purpose",
+    "required_order",
+    "label_opened",
+    "accessed_at"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "label_opened": {
+            "const": false
+          }
+        },
+        "required": [
+          "label_opened"
+        ]
+      },
+      "then": {
+        "properties": {
+          "labels_sha256": {
+            "type": "null"
+          },
+          "accessed_at": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "labels_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "accessed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  ]
+}
