@@ -38,6 +38,14 @@ from certa.active_v1.role_contract import (
     build_role_wire_schema,
     validate_role_contract,
 )
+from certa.active_v1.role_contract_v3 import (
+    ROLE_V3_MAX_TOKENS,
+    build_role_v3_prompt,
+    build_role_v3_prompt_template,
+    derive_role_v3_record,
+    parse_role_v3_output,
+    validate_role_v3_artifacts,
+)
 from certa.operations.contracts import OPERATION_SIGNATURES
 from certa.planner.schema_view import build_proposal_blind_planner_view
 from certa.planner.typed_planner import PLANNER_VERSION
@@ -45,6 +53,7 @@ from certa.reproducibility.canonical_json import canonical_json, canonical_json_
 
 
 PACK = Path("/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_FINAL_METHOD_GOAL_REVISED_PACK")
+ROLE_V3_PACK = Path("/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_ROLE_V3_FINAL_METHOD_PACK")
 DESIGN_SIGNATURE_IDS = tuple(ROLE_TUPLES)
 ROLE_INTERFACE_SCHEMA_VERSION = "certa_active_role_interface_freeze_v2"
 FROZEN_LEGACY_HASHES = {
@@ -731,6 +740,237 @@ def freeze_role_interface(matrix_path: Path, output: Path, profile_path: Path) -
     return interface
 
 
+def freeze_role_v3_interface(output_root: Path, profile_path: Path) -> Dict[str, Any]:
+    """Freeze every Role V3 authority before the first fresh endpoint call."""
+    if _git("status", "--porcelain"):
+        raise RuntimeError("role_v3_interface_freeze_requires_clean_worktree")
+    for relative, expected in FROZEN_LEGACY_HASHES.items():
+        if _sha256(REPO / relative) != expected:
+            raise RuntimeError(f"default_frozen_source_changed:{relative}")
+    freeze_dir = output_root / "freeze"
+    sources = {
+        "ROLE_V3_PROMPT_TEMPLATE.txt": ROLE_V3_PACK / "ROLE_V3_PROMPT_TEMPLATE.txt",
+        "ROLE_V3_ROLE_CARDS.json": ROLE_V3_PACK / "ROLE_V3_ROLE_CARDS.json",
+        "ROLE_V3_OUTPUT_SCHEMA.json": ROLE_V3_PACK / "ROLE_V3_OUTPUT_SCHEMA.json",
+        "ROLE_V3_CANONICAL_REGISTRY.json": ROLE_V3_PACK / "ROLE_V3_CANONICAL_REGISTRY.json",
+        "ROLE_V3_FRESH_QUESTIONS.json": ROLE_V3_PACK / "ROLE_V3_FRESH_QUESTIONS.json",
+    }
+    if any((freeze_dir / name).exists() for name in sources):
+        raise FileExistsError("refusing_to_overwrite_role_v3_interface")
+    cards = json.loads(sources["ROLE_V3_ROLE_CARDS.json"].read_text(encoding="utf-8"))
+    schema = json.loads(sources["ROLE_V3_OUTPUT_SCHEMA.json"].read_text(encoding="utf-8"))
+    registry = json.loads(sources["ROLE_V3_CANONICAL_REGISTRY.json"].read_text(encoding="utf-8"))
+    validate_role_v3_artifacts(cards, schema, registry)
+    if build_role_v3_prompt_template(cards) != sources["ROLE_V3_PROMPT_TEMPLATE.txt"].read_text(encoding="utf-8"):
+        raise ValueError("role_v3_prompt_template_mismatch")
+    freeze_dir.mkdir(parents=True, exist_ok=True)
+    for name, source in sources.items():
+        (freeze_dir / name).write_bytes(source.read_bytes())
+    thresholds = {
+        "schema_version": "certa_active_role_v3_gate_thresholds_v1",
+        "wire_required": 36,
+        "supported_coverage_count_min": 18,
+        "accepted_role_precision_min": 0.95,
+        "false_supported_activation_max": 1,
+        "critical_contrast_errors_max": 0,
+    }
+    _write_json(freeze_dir / "ROLE_V3_GATE_THRESHOLDS.json", thresholds)
+    method_sha = _git("rev-parse", "HEAD")
+    source_manifest = {
+        "schema_version": "certa_active_role_v3_source_manifest_v1",
+        "interface_commit": method_sha,
+        "source_sha256": {
+            relative: _sha256(REPO / relative) for relative in (
+                "certa/active_v1/role_contract_v3.py",
+                "tools/certa_active_v1.py",
+                "configs/profiles/certa_active_v1.env",
+            )
+        },
+        "default_frozen_source_sha256": dict(FROZEN_LEGACY_HASHES),
+        "pack_manifest_sha256": _sha256(ROLE_V3_PACK / "PACK_MANIFEST.json"),
+        "profile_sha256": _sha256(profile_path),
+    }
+    _write_json(freeze_dir / "ROLE_V3_SOURCE_MANIFEST.json", source_manifest)
+    interface = {
+        "schema_version": "certa_active_role_v3_interface_freeze_v1",
+        "interface_commit": method_sha,
+        "source_manifest_sha256": _sha256(freeze_dir / "ROLE_V3_SOURCE_MANIFEST.json"),
+        "artifact_sha256": {name: _sha256(freeze_dir / name) for name in sources},
+        "thresholds": thresholds,
+        "model": {
+            "model": "Qwen3-8B",
+            "api_base_url": "http://127.0.0.1:30338/v1",
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "max_new_tokens": ROLE_V3_MAX_TOKENS,
+            "enable_thinking": False,
+            "sdk_max_retries": 0,
+            "cache_mode": "off",
+            "local_http_trust_env": False,
+        },
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _write_json(freeze_dir / "ROLE_V3_INTERFACE_FREEZE.json", interface)
+    return interface
+
+
+def run_role_v3_predictions(
+    questions_path: Path,
+    interface_freeze_path: Path,
+    output_root: Path,
+) -> Dict[str, Any]:
+    """Run exactly one uncached structured-output attempt per fresh question."""
+    from run_cscr_pipeline import OpenAIChatGenerator
+
+    predictions_path = output_root / "role_v3/ROLE_V3_PREDICTIONS.json"
+    close_path = output_root / "role_v3/ROLE_V3_PREDICTION_CLOSE.json"
+    if predictions_path.exists() or close_path.exists():
+        raise FileExistsError(f"refusing_to_overwrite_role_v3_predictions:{predictions_path}")
+    if _git("status", "--porcelain"):
+        raise RuntimeError("role_v3_predictions_require_clean_worktree")
+    interface = json.loads(interface_freeze_path.read_text(encoding="utf-8"))
+    head = _git("rev-parse", "HEAD")
+    if interface.get("interface_commit") != head:
+        raise ValueError("role_v3_interface_commit_not_current_head")
+    freeze_dir = interface_freeze_path.parent
+    for name, expected in interface.get("artifact_sha256", {}).items():
+        if _sha256(freeze_dir / name) != expected:
+            raise ValueError(f"role_v3_frozen_artifact_hash_mismatch:{name}")
+    if _sha256(questions_path) != interface["artifact_sha256"]["ROLE_V3_FRESH_QUESTIONS.json"]:
+        raise ValueError("role_v3_questions_hash_mismatch")
+    questions = json.loads(questions_path.read_text(encoding="utf-8"))
+    items = questions.get("items")
+    if not isinstance(items, list) or len(items) != 36:
+        raise ValueError("role_v3_requires_36_questions")
+    cards = json.loads((freeze_dir / "ROLE_V3_ROLE_CARDS.json").read_text(encoding="utf-8"))
+    schema = json.loads((freeze_dir / "ROLE_V3_OUTPUT_SCHEMA.json").read_text(encoding="utf-8"))
+    registry = json.loads((freeze_dir / "ROLE_V3_CANONICAL_REGISTRY.json").read_text(encoding="utf-8"))
+    validate_role_v3_artifacts(cards, schema, registry)
+    generator = OpenAIChatGenerator(
+        model="Qwen3-8B", api_base_url="http://127.0.0.1:30338/v1",
+        api_key_env="EMPTY", timeout=120.0, max_retries=0,
+        rate_limit_seconds=0.0, max_model_len=32768,
+        cache_path="", cache_mode="off", backend_name="vllm_chat",
+    )
+    response_format = {
+        "type": "json_schema",
+        "json_schema": {"name": "certa_active_role_v3", "schema": schema, "strict": True},
+    }
+    predictions: list[Dict[str, Any]] = []
+    ledger: list[Dict[str, Any]] = []
+    for index, item in enumerate(items):
+        if set(item) != {"id", "question"}:
+            raise ValueError(f"invalid_role_v3_question:{index}")
+        item_id, question = str(item["id"]), str(item["question"])
+        prompt = build_role_v3_prompt(question, cards)
+        request_kwargs = generator._completion_request_kwargs(
+            prompt=prompt, max_new_tokens=ROLE_V3_MAX_TOKENS,
+            temperature=0.0, top_p=1.0, response_format=response_format,
+        )
+        request_path = output_root / f"raw/role_v3/{index:02d}_{item_id}_request.json"
+        response_path = output_root / f"raw/role_v3/{index:02d}_{item_id}_response.json"
+        request_record = {
+            "schema_version": "certa_active_role_v3_raw_request_v1",
+            "logical_call_index": index, "id": item_id,
+            "method": "POST", "path": "/v1/chat/completions",
+            "question_sha256": hashlib.sha256(question.encode("utf-8")).hexdigest(),
+            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            "request": request_kwargs,
+            "request_sha256": canonical_json_hash(request_kwargs),
+        }
+        _write_json(request_path, request_record)
+        started_at = datetime.now(timezone.utc).isoformat()
+        generated: Dict[str, Any] = {}
+        prediction = None
+        canonical_record = None
+        wire_valid = False
+        error_type = None
+        try:
+            generated = generator.generate_json_schema(
+                prompt, response_schema=schema, schema_name="certa_active_role_v3",
+                max_new_tokens=ROLE_V3_MAX_TOKENS, temperature=0.0, top_p=1.0,
+            )
+            prediction = parse_role_v3_output(str(generated.get("text") or ""), schema)
+            canonical_record = derive_role_v3_record(prediction, schema, registry)
+            wire_valid = True
+        except Exception as error:
+            error_type = type(error).__name__
+            generated = generated or {
+                "text": None,
+                "error_sha256": hashlib.sha256(str(error).encode("utf-8")).hexdigest(),
+            }
+        completed_at = datetime.now(timezone.utc).isoformat()
+        _write_json(response_path, {
+            "schema_version": "certa_active_role_v3_raw_response_v1",
+            "ok": error_type is None,
+            "generation": generated,
+            "prediction": prediction,
+            "canonical_record": canonical_record,
+            "wire_valid": wire_valid,
+            "error_type": error_type,
+        })
+        predictions.append({
+            "id": item_id,
+            "prediction": prediction,
+            "canonical_record": canonical_record,
+            "wire_valid": wire_valid,
+            "raw_request_path": str(request_path.resolve()),
+            "raw_request_sha256": _sha256(request_path),
+            "raw_response_path": str(response_path.resolve()),
+            "raw_response_sha256": _sha256(response_path),
+            "created_at": completed_at,
+        })
+        ledger.append({
+            "schema_version": "certa_active_role_v3_endpoint_ledger_v1",
+            "logical_call_type": "ROLE_V3_FRESH_CONFIRMATION",
+            "logical_call_index": index, "id": item_id,
+            "method": "POST", "path": "/v1/chat/completions",
+            "started_at": started_at, "completed_at": completed_at,
+            "transport_attempts": 1, "cache_hit": False,
+            "request_sha256": request_record["request_sha256"],
+            "response_sha256": _sha256(response_path),
+            "usage": generated.get("api_usage") or {},
+            "generation_seconds": generated.get("generation_seconds", 0.0),
+            "wire_valid": wire_valid,
+        })
+        _write_jsonl(output_root / "logs/ROLE_V3_ENDPOINT_LEDGER.jsonl", ledger)
+    result = {
+        "schema_version": "certa_active_role_v3_predictions_v1",
+        "set_id": questions["set_id"],
+        "interface_commit": head,
+        "interface_freeze_sha256": _sha256(interface_freeze_path),
+        "questions_sha256": _sha256(questions_path),
+        "items": predictions,
+    }
+    _write_json(predictions_path, result)
+    if _git("status", "--porcelain"):
+        raise RuntimeError("role_v3_prediction_close_requires_clean_worktree")
+    raw_requests = sorted((output_root / "raw/role_v3").glob("*_request.json"))
+    raw_responses = sorted((output_root / "raw/role_v3").glob("*_response.json"))
+    close = {
+        "schema_version": "certa_active_role_v3_prediction_close_v1",
+        "interface_commit": head,
+        "interface_freeze_sha256": _sha256(interface_freeze_path),
+        "questions_sha256": _sha256(questions_path),
+        "predictions_sha256": _sha256(predictions_path),
+        "ledger_sha256": _sha256(output_root / "logs/ROLE_V3_ENDPOINT_LEDGER.jsonl"),
+        "logical_calls": len(predictions),
+        "transport_attempts": sum(row["transport_attempts"] for row in ledger),
+        "raw_request_count": len(raw_requests),
+        "raw_response_count": len(raw_responses),
+        "raw_artifact_sha256": {
+            str(path.relative_to(output_root)): _sha256(path)
+            for path in raw_requests + raw_responses
+        },
+        "worktree_clean": True,
+        "closed_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _write_json(close_path, close)
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
@@ -758,6 +998,13 @@ def main() -> None:
     sealed_role.add_argument("--capability-matrix", type=Path, required=True)
     sealed_role.add_argument("--output-root", type=Path, required=True)
     sealed_role.add_argument("--cache", type=Path, required=True)
+    role_v3_freeze = sub.add_parser("freeze-role-v3-interface")
+    role_v3_freeze.add_argument("--output-root", type=Path, required=True)
+    role_v3_freeze.add_argument("--profile", type=Path, default=REPO / "configs/profiles/certa_active_v1.env")
+    role_v3_run = sub.add_parser("run-role-v3")
+    role_v3_run.add_argument("--questions", type=Path, required=True)
+    role_v3_run.add_argument("--interface-freeze", type=Path, required=True)
+    role_v3_run.add_argument("--output-root", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "capability-fixtures":
         matrix = build_signature_capability_matrix()
@@ -779,6 +1026,10 @@ def main() -> None:
             args.questions, args.interface_freeze, args.capability_matrix,
             args.output_root, args.cache,
         )
+    elif args.command == "freeze-role-v3-interface":
+        freeze_role_v3_interface(args.output_root, args.profile)
+    elif args.command == "run-role-v3":
+        run_role_v3_predictions(args.questions, args.interface_freeze, args.output_root)
 
 
 if __name__ == "__main__":
