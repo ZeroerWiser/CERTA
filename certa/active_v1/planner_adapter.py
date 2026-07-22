@@ -41,6 +41,7 @@ class ActiveCompilationResult:
     normalized_payload: Dict[str, Any] = field(default_factory=dict)
     canonical_payload: str = ""
     canonical_payload_sha256: str = ""
+    allowed_signature_ids: Tuple[str, ...] = ()
     errors: Tuple[str, ...] = ()
 
 
@@ -108,6 +109,7 @@ def build_arm_view(
         allowed_ids = (str(role_payload["signature"]),)
         query_contract = role_to_query_contract(role_payload)
         semantics_mode = "active"
+    role_hash = canonical_json_hash(role_payload) if role_payload is not None else ""
     view = build_proposal_blind_planner_view(
         question=str(question or ""),
         graph=graph,
@@ -121,6 +123,8 @@ def build_arm_view(
     if arm == "C2_ROLE_RETRIEVAL":
         if not isinstance(retrieval, Mapping):
             raise ValueError("c2_retrieval_result_required")
+        if retrieval.get("role_record_sha256") != role_hash:
+            raise ValueError("c2_role_record_sha256_mismatch")
         values = retrieval.get("reference_node_ids")
         if not isinstance(values, list) or not values:
             raise ValueError("c2_retrieval_reference_ids_empty")
@@ -135,7 +139,6 @@ def build_arm_view(
             item for item in view["schema_edges"]
             if item["source"] in selected and item["target"] in selected
         ]
-    role_hash = canonical_json_hash(role_payload) if role_payload is not None else ""
     return PlannerViewBuild(arm, view, role_hash, references)
 
 
@@ -146,6 +149,19 @@ def compile_active_planner_payload(
 ) -> ActiveCompilationResult:
     """Validate, capability-check, and canonically round-trip a Planner payload."""
     active_ids = active_signature_ids(capability_matrix)
+    ontology = view.get("operation_ontology") if isinstance(view, Mapping) else None
+    raw_allowed = ontology.get("signature_ids") if isinstance(ontology, Mapping) else None
+    if not isinstance(raw_allowed, list) or not raw_allowed:
+        return ActiveCompilationResult(False, errors=("planner_view_signature_allowlist_missing",))
+    allowed_ids = tuple(str(item) for item in raw_allowed)
+    if len(set(allowed_ids)) != len(allowed_ids):
+        return ActiveCompilationResult(False, errors=("planner_view_signature_allowlist_duplicate",))
+    inactive_view_ids = sorted(set(allowed_ids) - set(active_ids))
+    if inactive_view_ids:
+        return ActiveCompilationResult(
+            False,
+            errors=(f"planner_view_inactive_signature:{','.join(inactive_view_ids)}",),
+        )
     validation = validate_typed_planner_output(raw, view, require_signature_id=True)
     errors = list(validation.errors)
     errors.extend(
@@ -169,6 +185,7 @@ def compile_active_planner_payload(
         normalized_payload=payload,
         canonical_payload=serialized,
         canonical_payload_sha256=canonical_json_hash(payload),
+        allowed_signature_ids=allowed_ids,
     )
 
 
@@ -183,18 +200,32 @@ def close_compiled_payload(
     if not compilation.ok:
         raise ValueError("cannot_close_invalid_active_compilation")
     active_ids = active_signature_ids(capability_matrix)
+    allowed_ids = compilation.allowed_signature_ids
+    if not allowed_ids:
+        raise ValueError("active_compilation_allowlist_missing")
+    inactive_allowed_ids = sorted(set(allowed_ids) - set(active_ids))
+    if inactive_allowed_ids:
+        raise ValueError(f"active_compilation_inactive_allowlist:{','.join(inactive_allowed_ids)}")
+    payload_signature_ids = {
+        str(plan.get("signature_id") or "")
+        for plan in compilation.normalized_payload.get("plans") or []
+        if isinstance(plan, Mapping)
+    }
+    outside_allowlist = sorted(payload_signature_ids - set(allowed_ids))
+    if outside_allowlist:
+        raise ValueError(f"active_compilation_signature_outside_allowlist:{','.join(outside_allowlist)}")
     closure = build_plan_closure(
         compilation.normalized_payload,
         graph,
         max_assignments=max_assignments,
-        allowed_signature_ids=active_ids,
+        allowed_signature_ids=allowed_ids,
     )
     if not closure.resource_complete:
         raise ValueError("active_closure_resource_incomplete")
     for derivation in closure.executable_derivations:
         signature_id = str(derivation.typed_signature or "")
         signature = OPERATION_SIGNATURES.get(signature_id)
-        if signature_id not in active_ids or signature is None:
+        if signature_id not in allowed_ids or signature is None:
             raise ValueError(f"active_closure_inactive_signature:{signature_id}")
         if derivation.projection_operator != signature.projection_operator or derivation.output_domain != signature.answer_domain:
             raise ValueError(f"active_closure_projection_contract_mismatch:{signature_id}")

@@ -47,6 +47,20 @@ FROZEN_LEGACY_HASHES = {
     "certa/egra/retrieval.py": "02d30f80ac2e3c0827c4eaf819a2aa0f66b50e42cd1b93681041fc1a25995552",
     "certa/repair/causal_epistemic_agent.py": "77619174cad1695cc11db73e2cf436c1b3d356a70e7b94b4d5870e5e0d9a9787",
 }
+EXPECTED_FIXTURE_ANSWERS = {
+    "ARGMAX_ENTITY": "A",
+    "ARGMAX_ENTITY_SET": "A | C",
+    "ARGMIN_ENTITY": "B",
+    "ARGMIN_ENTITY_SET": "B | D",
+    "AVERAGE_SCALAR": "3",
+    "COUNT_SCALAR": "2",
+    "DIFF_SCALAR": "2",
+    "LOOKUP_VALUE_ENTITY": "Alpha",
+    "LOOKUP_VALUE_SCALAR": "4",
+    "PAIR_COMPARE_BOOLEAN": "true",
+    "RATIO_SCALAR": "2",
+    "SUM_SCALAR": "6",
+}
 
 
 def _sha256(path: Path) -> str:
@@ -205,6 +219,7 @@ def _capability_row(signature_id: str) -> Dict[str, Any]:
     deterministic_pass = bool(
         closure_pass and closure_again is not None
         and canonical_json(closure.to_dict()) == canonical_json(closure_again.to_dict())
+        and derivations[0].projected_answer == EXPECTED_FIXTURE_ANSWERS[signature_id]
     )
     derivation = derivations[0] if derivations else None
     projection_pass = bool(
@@ -248,6 +263,8 @@ def _capability_row(signature_id: str) -> Dict[str, Any]:
         **booleans,
         "negative_fixture_pass": negative_pass,
         "canonical_program_id": assignments[0].canonical_program_id if assignments else "",
+        "expected_projected_answer": EXPECTED_FIXTURE_ANSWERS[signature_id],
+        "observed_projected_answer": derivation.projected_answer if derivation else "",
         "projected_answer_sha256": canonical_json_hash({"answer": derivation.projected_answer}) if derivation else "",
         "provenance_count": len(derivation.evidence_ids) if derivation else 0,
         "constructor_active": active,
@@ -282,6 +299,8 @@ def build_signature_capability_schema() -> Dict[str, Any]:
         "required_role_shapes": {"type": "object", "additionalProperties": {"type": "string"}},
         "projection_operator": {"type": "string"}, "answer_domain": {"type": "string"},
         "canonical_program_id": {"type": "string", "minLength": 1},
+        "expected_projected_answer": {"type": "string", "minLength": 1},
+        "observed_projected_answer": {"type": "string", "minLength": 1},
         "projected_answer_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "provenance_count": {"type": "integer", "minimum": 1},
         "constructor_failure_reasons": {"type": "array", "items": {"type": "string"}},

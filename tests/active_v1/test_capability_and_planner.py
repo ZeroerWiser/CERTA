@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 
 from graph_builder import EdgeType, GraphEdge, GraphNode, HCEG, NodeType
 
@@ -12,6 +13,7 @@ from certa.active_v1.role_contract import validate_role_contract
 from certa.operations.contracts import OPERATION_SIGNATURES
 from certa.planner.typed_planner import PLANNER_VERSION
 from tools.certa_active_v1 import (
+    EXPECTED_FIXTURE_ANSWERS,
     build_signature_capability_matrix,
     build_signature_capability_schema,
 )
@@ -120,13 +122,28 @@ class ActiveCapabilityPlannerTests(unittest.TestCase):
         self.assertEqual(c1.view["operation_ontology"]["signature_ids"], ["COUNT_SCALAR"])
         c2 = build_arm_view(
             "C2_ROLE_RETRIEVAL", "How many?", self.graph, self.table,
-            count_role(), {"reference_node_ids": ["entity_a", "entity_b", "measure_numeric"]}, self.matrix,
+            count_role(), {
+                "role_record_sha256": c1.role_record_sha256,
+                "reference_node_ids": ["entity_a", "entity_b", "measure_numeric"],
+            }, self.matrix,
         )
+        self.assertEqual(c2.role_record_sha256, c1.role_record_sha256)
         self.assertEqual({item["node_id"] for item in c2.view["schema_nodes"]}, {"entity_a", "entity_b", "measure_numeric"})
+        with self.assertRaisesRegex(ValueError, "c2_role_record_sha256_mismatch"):
+            build_arm_view(
+                "C2_ROLE_RETRIEVAL", "How many?", self.graph, self.table,
+                count_role(), {
+                    "role_record_sha256": "0" * 64,
+                    "reference_node_ids": ["entity_a", "entity_b", "measure_numeric"],
+                }, self.matrix,
+            )
         with self.assertRaisesRegex(ValueError, "retrieval_reference_outside_schema"):
             build_arm_view(
                 "C2_ROLE_RETRIEVAL", "How many?", self.graph, self.table,
-                count_role(), {"reference_node_ids": ["missing"]}, self.matrix,
+                count_role(), {
+                    "role_record_sha256": c1.role_record_sha256,
+                    "reference_node_ids": ["missing"],
+                }, self.matrix,
             )
 
     def test_validated_payload_compiles_roundtrips_and_closes(self):
@@ -136,12 +153,29 @@ class ActiveCapabilityPlannerTests(unittest.TestCase):
         )
         compiled = compile_active_planner_payload(count_payload(), built.view, self.matrix)
         self.assertTrue(compiled.ok, compiled.errors)
+        self.assertEqual(compiled.allowed_signature_ids, ("COUNT_SCALAR",))
         closure = close_compiled_payload(compiled, self.graph, self.matrix)
         self.assertEqual(len(closure.executable_derivations), 1)
         derivation = closure.executable_derivations[0]
         self.assertEqual(derivation.typed_signature, "COUNT_SCALAR")
         self.assertEqual(derivation.projected_answer, "2")
         self.assertTrue(derivation.provenance_complete)
+
+    def test_closure_reuses_the_view_allowlist_instead_of_the_full_matrix(self):
+        matrix = active_matrix("COUNT_SCALAR", "SUM_SCALAR")
+        built = build_arm_view(
+            "C1_ROLE_ONLY", "How many?", self.graph, self.table,
+            count_role(), None, matrix,
+        )
+        compiled = compile_active_planner_payload(count_payload(), built.view, matrix)
+        self.assertTrue(compiled.ok, compiled.errors)
+        sum_payload = count_payload()
+        sum_payload["query_semantics"]["operation_family"] = "SUM"
+        sum_payload["plans"][0]["signature_id"] = "SUM_SCALAR"
+        sum_payload["plans"][0]["operation_family"] = "SUM"
+        tampered = replace(compiled, normalized_payload=sum_payload)
+        with self.assertRaisesRegex(ValueError, "active_compilation_signature_outside_allowlist"):
+            close_compiled_payload(tampered, self.graph, matrix)
 
     def test_inactive_signature_and_invalid_payload_fail_closed(self):
         built = build_arm_view(
@@ -169,6 +203,12 @@ class ActiveCapabilityPlannerTests(unittest.TestCase):
             self.assertTrue(row["negative_fixture_pass"], row)
             self.assertTrue(row["canonical_program_id"], row)
             self.assertTrue(row["projected_answer_sha256"], row)
+            self.assertEqual(
+                row["expected_projected_answer"],
+                EXPECTED_FIXTURE_ANSWERS[row["signature_id"]],
+                row,
+            )
+            self.assertEqual(row["observed_projected_answer"], row["expected_projected_answer"], row)
 
 
 if __name__ == "__main__":
