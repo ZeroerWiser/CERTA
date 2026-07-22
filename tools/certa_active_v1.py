@@ -8,6 +8,7 @@ import copy
 import hashlib
 import inspect
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -27,6 +28,7 @@ from certa.active_v1.planner_adapter import (
     close_compiled_payload,
     compile_active_planner_payload,
 )
+from certa.active_v1.cohort import RUNTIME_FIELDS, select_active_cohorts
 from certa.active_v1.role_contract import (
     ROLE_TUPLES,
     build_role_prompt,
@@ -325,6 +327,78 @@ def _write_json(path: Path, value: Mapping[str, Any]) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _read_jsonl(path: Path) -> list[Dict[str, Any]]:
+    return [
+        dict(json.loads(line))
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def _write_jsonl(path: Path, rows: list[Mapping[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(canonical_json(dict(row)) + "\n" for row in rows), encoding="utf-8")
+
+
+def freeze_active_cohorts(
+    dev_source: Path,
+    train_source: Path,
+    table_root: Path,
+    historical_paths: list[Path],
+    output_root: Path,
+) -> Dict[str, Any]:
+    historical_rows = [row for path in historical_paths for row in _read_jsonl(path)]
+    result = select_active_cohorts(
+        _read_jsonl(dev_source), _read_jsonl(train_source), table_root, historical_rows,
+    )
+    membership_fields = (
+        "sample_id", "table_id", "stable_hash", "table_content_sha256",
+        "source_order", "source_split",
+    )
+    dev_members = [{field: row[field] for field in membership_fields} for row in result["dev"]]
+    holdout_members = [{field: row[field] for field in membership_fields} for row in result["holdout"]]
+    integration_members = dev_members[:16]
+    paths = {
+        "dev_members": output_root / "freeze/DEV64_IDENTITIES.blind.jsonl",
+        "holdout_members": output_root / "freeze/HOLDOUT64_IDENTITIES.blind.jsonl",
+        "dev_runtime": output_root / "inputs/dev64_runtime.jsonl",
+        "holdout_runtime": output_root / "inputs/holdout64_runtime.sealed.jsonl",
+        "integration16": output_root / "integration/INTEGRATION16_IDENTITIES.jsonl",
+    }
+    _write_jsonl(paths["dev_members"], dev_members)
+    _write_jsonl(paths["holdout_members"], holdout_members)
+    _write_jsonl(paths["dev_runtime"], [dict(row["runtime"]) for row in result["dev"]])
+    _write_jsonl(paths["holdout_runtime"], [dict(row["runtime"]) for row in result["holdout"]])
+    os.chmod(paths["holdout_runtime"], 0o440)
+    _write_jsonl(paths["integration16"], integration_members)
+    freeze = {
+        "schema_version": "certa_active_v1_cohort_selection_freeze_v1",
+        "seed": result["seed"],
+        "domain_separator": result["domain_separator"],
+        "selection_method": "stable_sha256_one_sample_per_normalized_table_content_class",
+        "selection_uses_answer_or_operation": False,
+        "official_test_used": False,
+        "runtime_fields": list(RUNTIME_FIELDS),
+        "source_paths": {"dev": str(dev_source.resolve()), "holdout": str(train_source.resolve())},
+        "source_sha256": {"dev": _sha256(dev_source), "holdout": _sha256(train_source)},
+        "historical_paths": [str(path.resolve()) for path in historical_paths],
+        "historical_sha256": {str(path.resolve()): _sha256(path) for path in historical_paths},
+        "historical_table_count": len(result["historical_table_ids"]),
+        "historical_content_class_count": result["historical_content_class_count"],
+        "dev_candidate_class_count": result["dev_candidate_class_count"],
+        "holdout_candidate_class_count": result["holdout_candidate_class_count"],
+        "dev_count": len(dev_members),
+        "holdout_count": len(holdout_members),
+        "integration16_count": len(integration_members),
+        "dev_holdout_table_overlap": 0,
+        "dev_holdout_content_class_overlap": 0,
+        "historical_selected_table_overlap": 0,
+        "artifact_sha256": {key: _sha256(path) for key, path in paths.items()},
+    }
+    _write_json(output_root / "freeze/COHORT_SELECTION_FREEZE.json", freeze)
+    return freeze
+
+
 def _git(*args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=REPO, text=True).strip()
 
@@ -387,6 +461,12 @@ def main() -> None:
     role.add_argument("--capability-matrix", type=Path, required=True)
     role.add_argument("--output", type=Path, required=True)
     role.add_argument("--profile", type=Path, default=REPO / "configs/profiles/certa_active_v1.env")
+    cohorts = sub.add_parser("freeze-cohorts")
+    cohorts.add_argument("--dev-source", type=Path, required=True)
+    cohorts.add_argument("--train-source", type=Path, required=True)
+    cohorts.add_argument("--table-root", type=Path, required=True)
+    cohorts.add_argument("--historical", type=Path, action="append", required=True)
+    cohorts.add_argument("--output-root", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "capability-fixtures":
         matrix = build_signature_capability_matrix()
@@ -396,6 +476,11 @@ def main() -> None:
         jsonschema.validate(matrix, build_signature_capability_schema())
     elif args.command == "freeze-role-interface":
         freeze_role_interface(args.capability_matrix, args.output, args.profile)
+    elif args.command == "freeze-cohorts":
+        freeze_active_cohorts(
+            args.dev_source, args.train_source, args.table_root,
+            args.historical, args.output_root,
+        )
 
 
 if __name__ == "__main__":
