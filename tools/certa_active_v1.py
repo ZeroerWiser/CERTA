@@ -31,6 +31,7 @@ from certa.active_v1.planner_adapter import (
 from certa.active_v1.cohort import RUNTIME_FIELDS, select_active_cohorts
 from certa.active_v1.answer_authority import active_answer_hash
 from certa.active_v1.role_contract import (
+    ROLE_MAX_TOKENS,
     ROLE_TUPLES,
     build_role_prompt,
     build_role_semantic_schema,
@@ -548,6 +549,136 @@ def run_active_b0(
     return replay_proof
 
 
+def run_sealed_role_predictions(
+    questions_path: Path,
+    interface_freeze_path: Path,
+    matrix_path: Path,
+    output_root: Path,
+    cache_path: Path,
+) -> Dict[str, Any]:
+    from run_cscr_pipeline import OpenAIChatGenerator
+
+    predictions_path = output_root / "role/ROLE_SEALED_PREDICTIONS.json"
+    if predictions_path.exists():
+        raise FileExistsError(f"refusing_to_overwrite_role_predictions:{predictions_path}")
+    questions = json.loads(questions_path.read_text(encoding="utf-8"))
+    items = questions.get("items")
+    if not isinstance(items, list) or len(items) != 16:
+        raise ValueError("sealed_role_questions_must_have_16_items")
+    matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+    active_ids = active_signature_ids(matrix)
+    interface = json.loads(interface_freeze_path.read_text(encoding="utf-8"))
+    if interface.get("method_sha") != _git("rev-parse", "HEAD"):
+        raise ValueError("role_interface_commit_not_current_head")
+    if interface.get("prompt_sha256") != _sha256(interface_freeze_path.parent / "ROLE_PROMPT_TEMPLATE.txt"):
+        raise ValueError("role_interface_prompt_hash_mismatch")
+    generator = OpenAIChatGenerator(
+        model="Qwen3-8B", api_base_url="http://127.0.0.1:30338/v1",
+        api_key_env="EMPTY", timeout=120.0, max_retries=0,
+        rate_limit_seconds=0.0, max_model_len=32768,
+        cache_path=str(cache_path), cache_mode="readwrite", backend_name="vllm_chat",
+    )
+    response_schema = build_role_wire_schema(active_ids)
+    prediction_items = []
+    ledger = []
+    for index, item in enumerate(items):
+        item_id = str(item.get("id") or "")
+        question = str(item.get("question") or "")
+        if not item_id or not question or set(item) != {"id", "question"}:
+            raise ValueError(f"invalid_sealed_role_question:{index}")
+        prompt = build_role_prompt(question, active_ids)
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {"name": "certa_active_role_v2", "schema": response_schema, "strict": True},
+        }
+        request_kwargs = generator._completion_request_kwargs(
+            prompt=prompt, max_new_tokens=ROLE_MAX_TOKENS,
+            temperature=0.0, top_p=1.0, response_format=response_format,
+        )
+        request_path = output_root / f"raw/role/{index:02d}_{item_id}_request.json"
+        response_path = output_root / f"raw/role/{index:02d}_{item_id}_response.json"
+        _write_json(request_path, {
+            "schema_version": "certa_active_v1_role_raw_request_v1",
+            "logical_call_index": index,
+            "id": item_id,
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "question_sha256": hashlib.sha256(question.encode("utf-8")).hexdigest(),
+            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            "request": request_kwargs,
+            "request_sha256": canonical_json_hash(request_kwargs),
+        })
+        started_at = datetime.now(timezone.utc).isoformat()
+        try:
+            generated = generator.generate_json_schema(
+                prompt, response_schema=response_schema,
+                schema_name="certa_active_role_v2", max_new_tokens=ROLE_MAX_TOKENS,
+                temperature=0.0, top_p=1.0,
+            )
+        except Exception as error:
+            _write_json(response_path, {
+                "schema_version": "certa_active_v1_role_raw_response_v1",
+                "ok": False, "error_type": type(error).__name__,
+                "error_sha256": hashlib.sha256(str(error).encode("utf-8")).hexdigest(),
+            })
+            raise
+        validation = validate_role_contract(str(generated.get("text") or ""), active_ids)
+        _write_json(response_path, {
+            "schema_version": "certa_active_v1_role_raw_response_v1",
+            "ok": True,
+            "generation": generated,
+            "validation": {
+                "parse_ok": validation.parse_ok,
+                "wire_valid": validation.wire_valid,
+                "semantic_schema_valid": validation.semantic_schema_valid,
+                "local_validator_valid": validation.local_validator_valid,
+                "parse_errors": list(validation.parse_errors),
+                "wire_errors": list(validation.wire_errors),
+                "semantic_errors": list(validation.semantic_errors),
+                "local_errors": list(validation.local_errors),
+            },
+        })
+        if not validation.parse_ok or not validation.wire_valid:
+            raise ValueError(f"sealed_role_wire_failure:{item_id}")
+        created_at = datetime.now(timezone.utc).isoformat()
+        prediction_items.append({
+            "id": item_id,
+            "wire_valid": validation.wire_valid,
+            "semantic_schema_valid": validation.semantic_schema_valid,
+            "local_validator_valid": validation.local_validator_valid,
+            "prediction": validation.payload,
+            "raw_response_sha256": _sha256(response_path),
+            "created_at": created_at,
+        })
+        ledger.append({
+            "schema_version": "certa_active_v1_endpoint_ledger_v1",
+            "logical_call_type": "SEALED_ROLE_CONFIRMATION",
+            "logical_call_index": index,
+            "id": item_id,
+            "method": "POST", "path": "/v1/chat/completions",
+            "started_at": started_at, "completed_at": created_at,
+            "transport_attempts": 0 if generated.get("api_cache_hit") else 1,
+            "cache_hit": bool(generated.get("api_cache_hit")),
+            "request_sha256": canonical_json_hash(request_kwargs),
+            "response_sha256": _sha256(response_path),
+            "usage": generated.get("api_usage") or {},
+            "generation_seconds": generated.get("generation_seconds", 0.0),
+        })
+    predictions = {
+        "schema_version": "certa_active_role_predictions_v2",
+        "fixture_only": False,
+        "questions_sha256": _sha256(questions_path),
+        "interface_freeze_sha256": _sha256(interface_freeze_path),
+        "items": prediction_items,
+    }
+    schema_path = PACK / "schemas/ROLE_PREDICTIONS_SCHEMA.json"
+    resolver = jsonschema.RefResolver(base_uri=(PACK / "schemas").resolve().as_uri() + "/", referrer=json.loads(schema_path.read_text()))
+    jsonschema.validate(predictions, json.loads(schema_path.read_text()), resolver=resolver)
+    _write_json(predictions_path, predictions)
+    _write_jsonl(output_root / "logs/ROLE_ENDPOINT_LEDGER.jsonl", ledger)
+    return predictions
+
+
 def _git(*args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=REPO, text=True).strip()
 
@@ -621,6 +752,12 @@ def main() -> None:
     b0.add_argument("--table-root", type=Path, required=True)
     b0.add_argument("--output-root", type=Path, required=True)
     b0.add_argument("--cache", type=Path, required=True)
+    sealed_role = sub.add_parser("run-sealed-role")
+    sealed_role.add_argument("--questions", type=Path, required=True)
+    sealed_role.add_argument("--interface-freeze", type=Path, required=True)
+    sealed_role.add_argument("--capability-matrix", type=Path, required=True)
+    sealed_role.add_argument("--output-root", type=Path, required=True)
+    sealed_role.add_argument("--cache", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "capability-fixtures":
         matrix = build_signature_capability_matrix()
@@ -637,6 +774,11 @@ def main() -> None:
         )
     elif args.command == "run-b0":
         run_active_b0(args.runtime, args.table_root, args.output_root, args.cache)
+    elif args.command == "run-sealed-role":
+        run_sealed_role_predictions(
+            args.questions, args.interface_freeze, args.capability_matrix,
+            args.output_root, args.cache,
+        )
 
 
 if __name__ == "__main__":
