@@ -1,7 +1,11 @@
 import argparse
+import os
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from run_cscr_pipeline import (
@@ -13,6 +17,32 @@ from run_cscr_pipeline import (
 
 
 class Qwen3VllmThinkingTests(unittest.TestCase):
+    def test_local_vllm_transport_ignores_ambient_proxy_settings(self):
+        proxy = "http://127.0.0.1:9"
+        with patch.dict(
+            os.environ,
+            {"HTTP_PROXY": proxy, "HTTPS_PROXY": proxy, "NO_PROXY": ""},
+            clear=False,
+        ):
+            generator = OpenAIChatGenerator(
+                model="Qwen3-8B",
+                api_base_url="http://127.0.0.1:30338/v1",
+                api_key_env="EMPTY",
+                max_retries=0,
+                cache_mode="off",
+                backend_name="vllm_chat",
+            )
+        try:
+            client = generator.client._client
+            transport = client._transport_for_url(
+                httpx.URL("http://127.0.0.1:30338/v1/chat/completions")
+            )
+            self.assertFalse(client._trust_env)
+            self.assertIs(transport, client._transport)
+            self.assertEqual(type(transport._pool).__name__, "ConnectionPool")
+        finally:
+            generator.client.close()
+
     def test_qwen3_vllm_chat_disables_thinking_without_affecting_other_models(self):
         self.assertEqual(_api_chat_template_kwargs("vllm_chat", "Qwen3-8B"), {"enable_thinking": False})
         self.assertEqual(_api_chat_template_kwargs("vllm_chat", "Qwen2.5-7B-Instruct"), {})

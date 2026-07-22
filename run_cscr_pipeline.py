@@ -1795,7 +1795,7 @@ class OpenAIChatGenerator(_ApiGeneratorMixin):
         cache_mode: str = "readwrite",
         backend_name: str = "openai_chat",
     ):
-        from openai import OpenAI
+        from openai import DefaultHttpxClient, OpenAI
 
         if cache_mode not in {"off", "readwrite", "readonly", "require"}:
             raise ValueError(f"Unsupported API cache mode: {cache_mode}")
@@ -1803,9 +1803,12 @@ class OpenAIChatGenerator(_ApiGeneratorMixin):
         base_url = api_base_url.rstrip("/")
         if backend_name == "vllm_chat" and not base_url.endswith("/v1"):
             base_url = f"{base_url}/v1"
+        is_local_endpoint = bool(
+            re.search(r"https?://(?:127\.0\.0\.1|localhost)(?::\d+)?(?:/|$)", base_url)
+        )
         if not api_key and (
             api_key_env.upper() in {"EMPTY", "NONE", "DUMMY"}
-            or re.search(r"https?://(?:127\.0\.0\.1|localhost)(?::\d+)?(?:/|$)", base_url)
+            or is_local_endpoint
         ):
             api_key = "EMPTY"
         if not api_key:
@@ -1813,11 +1816,17 @@ class OpenAIChatGenerator(_ApiGeneratorMixin):
                 f"API key environment variable {api_key_env} is not set. "
                 "Set it before launching the API-backed CSCR run."
             )
+        http_client = (
+            DefaultHttpxClient(trust_env=False)
+            if backend_name == "vllm_chat" and is_local_endpoint
+            else None
+        )
         self.client = OpenAI(
             api_key=api_key,
             base_url=base_url,
             timeout=timeout,
             max_retries=max_retries,
+            **({"http_client": http_client} if http_client is not None else {}),
         )
         self.model = model
         self.api_base_url = base_url
