@@ -29,6 +29,7 @@ from certa.active_v1.planner_adapter import (
     compile_active_planner_payload,
 )
 from certa.active_v1.cohort import RUNTIME_FIELDS, select_active_cohorts
+from certa.active_v1.answer_authority import active_answer_hash
 from certa.active_v1.role_contract import (
     ROLE_TUPLES,
     build_role_prompt,
@@ -399,6 +400,154 @@ def freeze_active_cohorts(
     return freeze
 
 
+def run_active_b0(
+    runtime_path: Path,
+    table_root: Path,
+    output_root: Path,
+    cache_path: Path,
+) -> Dict[str, Any]:
+    from run_cscr_pipeline import (
+        OpenAIChatGenerator,
+        build_structure_aware_prompt,
+        extract_answer,
+        load_table_for_cscr,
+    )
+
+    runtime_rows = _read_jsonl(runtime_path)
+    if len(runtime_rows) != 64:
+        raise ValueError(f"active_b0_requires_dev64:{len(runtime_rows)}")
+    output_path = output_root / "b0/DEV_B0_FREEZE.jsonl"
+    ledger_path = output_root / "logs/B0_ENDPOINT_LEDGER.jsonl"
+    existing = _read_jsonl(output_path) if output_path.is_file() else []
+    ledger = _read_jsonl(ledger_path) if ledger_path.is_file() else []
+    if len(existing) > len(runtime_rows):
+        raise ValueError("active_b0_existing_rows_exceed_runtime")
+    generator = OpenAIChatGenerator(
+        model="Qwen3-8B",
+        api_base_url="http://127.0.0.1:30338/v1",
+        api_key_env="EMPTY",
+        timeout=120.0,
+        max_retries=0,
+        rate_limit_seconds=0.0,
+        max_model_len=32768,
+        cache_path=str(cache_path),
+        cache_mode="readwrite",
+        backend_name="vllm_chat",
+    )
+    table_cache: Dict[str, Dict[str, Any]] = {}
+    prompts: list[str] = []
+    for index, runtime in enumerate(runtime_rows):
+        if set(runtime) != set(RUNTIME_FIELDS):
+            raise ValueError(f"active_b0_runtime_fields_mismatch:{index}")
+        table = load_table_for_cscr(dict(runtime), str(table_root), table_cache, "hitab")
+        prompt = build_structure_aware_prompt(table, str(runtime["question"]))
+        prompts.append(prompt)
+        if index < len(existing):
+            row = existing[index]
+            if row.get("sample_id") != runtime["id"] or row.get("table_id") != runtime["table_id"]:
+                raise ValueError(f"active_b0_resume_identity_mismatch:{index}")
+            continue
+        request_kwargs = generator._completion_request_kwargs(
+            prompt=prompt, max_new_tokens=32, temperature=0.0, top_p=1.0,
+        )
+        request_record = {
+            "schema_version": "certa_active_v1_b0_raw_request_v1",
+            "logical_call_index": index,
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "request": request_kwargs,
+            "request_sha256": canonical_json_hash(request_kwargs),
+        }
+        request_path = output_root / f"raw/b0/{index:03d}_request.json"
+        response_path = output_root / f"raw/b0/{index:03d}_response.json"
+        _write_json(request_path, request_record)
+        started_at = datetime.now(timezone.utc).isoformat()
+        try:
+            generated = generator.generate(
+                [prompt], max_new_tokens=32, temperature=0.0, top_p=1.0,
+            )[0]
+        except Exception as error:
+            _write_json(response_path, {
+                "schema_version": "certa_active_v1_b0_raw_response_v1",
+                "ok": False,
+                "error_type": type(error).__name__,
+                "error_sha256": hashlib.sha256(str(error).encode("utf-8")).hexdigest(),
+            })
+            raise
+        answer = extract_answer(str(generated.get("text") or ""))
+        if not answer:
+            raise ValueError(f"active_b0_empty_answer:{runtime['id']}")
+        response_record = {
+            "schema_version": "certa_active_v1_b0_raw_response_v1",
+            "ok": True,
+            "generation": generated,
+            "generation_sha256": canonical_json_hash(generated),
+        }
+        _write_json(response_path, response_record)
+        record = {
+            "schema_version": "certa_active_v1_b0_freeze_v1",
+            "sample_id": runtime["id"],
+            "table_id": runtime["table_id"],
+            "source_order": index,
+            "question_sha256": hashlib.sha256(str(runtime["question"]).encode("utf-8")).hexdigest(),
+            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            "request_sha256": request_record["request_sha256"],
+            "raw_request_path": str(request_path.resolve()),
+            "raw_request_sha256": _sha256(request_path),
+            "raw_response_path": str(response_path.resolve()),
+            "raw_response_sha256": _sha256(response_path),
+            "raw_text": generated["text"],
+            "raw_text_sha256": hashlib.sha256(str(generated["text"]).encode("utf-8")).hexdigest(),
+            "b0_answer": answer,
+            "b0_answer_sha256": active_answer_hash(answer),
+            "api_usage": generated.get("api_usage") or {},
+            "generation_seconds": generated.get("generation_seconds", 0.0),
+            "api_cache_hit": bool(generated.get("api_cache_hit", False)),
+        }
+        existing.append(record)
+        ledger.append({
+            "schema_version": "certa_active_v1_endpoint_ledger_v1",
+            "logical_call_type": "DEV_B0",
+            "logical_call_index": index,
+            "sample_id": runtime["id"],
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "started_at": started_at,
+            "transport_attempts": 0 if record["api_cache_hit"] else 1,
+            "cache_hit": record["api_cache_hit"],
+            "request_sha256": record["request_sha256"],
+            "response_sha256": record["raw_response_sha256"],
+        })
+        _write_jsonl(output_path, existing)
+        _write_jsonl(ledger_path, ledger)
+
+    replay = OpenAIChatGenerator(
+        model="Qwen3-8B", api_base_url="http://127.0.0.1:30338/v1",
+        api_key_env="EMPTY", timeout=120.0, max_retries=0,
+        rate_limit_seconds=0.0, max_model_len=32768,
+        cache_path=str(cache_path), cache_mode="require", backend_name="vllm_chat",
+    )
+    replay_rows = replay.generate(prompts, max_new_tokens=32, temperature=0.0, top_p=1.0)
+    replay_match = all(
+        hashlib.sha256(str(generated["text"]).encode("utf-8")).hexdigest() == frozen["raw_text_sha256"]
+        and active_answer_hash(extract_answer(str(generated["text"]))) == frozen["b0_answer_sha256"]
+        for generated, frozen in zip(replay_rows, existing)
+    )
+    if not replay_match or replay.cache_hits != 64 or replay.cache_misses != 0:
+        raise RuntimeError("active_b0_cache_replay_failed")
+    replay_proof = {
+        "schema_version": "certa_active_v1_b0_cache_replay_v1",
+        "record_count": len(existing),
+        "cache_hits": replay.cache_hits,
+        "cache_misses": replay.cache_misses,
+        "byte_and_answer_hash_match": replay_match,
+        "b0_freeze_sha256": _sha256(output_path),
+        "cache_sha256": _sha256(cache_path),
+    }
+    _write_json(output_root / "b0/B0_CACHE_REPLAY_PROOF.json", replay_proof)
+    return replay_proof
+
+
 def _git(*args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=REPO, text=True).strip()
 
@@ -467,6 +616,11 @@ def main() -> None:
     cohorts.add_argument("--table-root", type=Path, required=True)
     cohorts.add_argument("--historical", type=Path, action="append", required=True)
     cohorts.add_argument("--output-root", type=Path, required=True)
+    b0 = sub.add_parser("run-b0")
+    b0.add_argument("--runtime", type=Path, required=True)
+    b0.add_argument("--table-root", type=Path, required=True)
+    b0.add_argument("--output-root", type=Path, required=True)
+    b0.add_argument("--cache", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "capability-fixtures":
         matrix = build_signature_capability_matrix()
@@ -481,6 +635,8 @@ def main() -> None:
             args.dev_source, args.train_source, args.table_root,
             args.historical, args.output_root,
         )
+    elif args.command == "run-b0":
+        run_active_b0(args.runtime, args.table_root, args.output_root, args.cache)
 
 
 if __name__ == "__main__":
