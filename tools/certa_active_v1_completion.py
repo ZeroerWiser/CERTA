@@ -19,6 +19,7 @@ from certa.active_v1.artifact_authority import ArtifactContext, serialize_plan_c
 from certa.active_v1.decision_adapter import assess_decision_eligibility, materialize_selected_final, reconcile_cera_decision
 from certa.active_v1.planner_adapter import ActiveCompilationResult
 from certa.active_v1.planner_bridge_v3 import build_v3_arm_view, close_compiled_payload, compile_active_planner_payload
+from certa.active_v1.planner_transport_projection import build_planner_transport_schema, planner_transport_schema_identity
 from certa.active_v1.role_contract_v3 import build_role_v3_prompt, derive_role_v3_record, parse_role_v3_output, role_v3_to_planner_query_contract
 from certa.derivations.contrast import build_compact_behavioral_contrast_v3
 from certa.derivations.iade import build_basis_relative_behavior_classes, build_sample_fixed_role_intervention_basis
@@ -26,13 +27,14 @@ from certa.egra.evidence_cards import build_structural_evidence_cards
 from certa.egra.retrieval import FrozenE5Encoder, build_card_index, retrieve_structural_cards
 from certa.grounding.support_partition import partition_support
 from certa.planner.schema_view import build_canonical_structural_group_catalog
-from certa.planner.typed_planner import build_typed_derivation_planner_prompt, build_typed_planner_response_schema
+from certa.planner.typed_planner import build_typed_derivation_planner_prompt, build_typed_planner_response_schema, validate_typed_planner_output
 from certa.repair.repair_prompt import CERA_V3_TEMPLATE_VERSION, build_cera_prompt
 from certa.repair.safety_validator import validate_cera_output_v3
 from certa.reproducibility.canonical_json import canonical_json, canonical_json_hash
+from tools.certa_active_v1_schema_risk_scanner import DEFAULT_LIMITS, scan_schema
 
 PY = "/home/hsh/anaconda3/envs/table-cu128/bin/python"
-OUT = Path("/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_FROZEN_ROLE_V3_FINAL_METHOD_COMPLETION_ARCHIVE_RESTORED")
+OUT = Path("/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_INTEGRATION16_TRANSPORT_PROJECTION_REEXECUTION")
 CP2 = Path("/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_FINAL_RUNTIME_RECOVERY_20260722_CP2")
 R3 = Path("/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_ROLE_V3_FINAL")
 PACK = Path("/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_FROZEN_ROLE_V3_FINAL_METHOD_COMPLETION_PACK")
@@ -70,6 +72,14 @@ def role_calculator_record(sample_id: str, role: Mapping[str, Any]):
 def request_record(kind: str, index: int, sample_id: str, request: Mapping[str, Any]):
     return {"schema_version":"certa_active_v1_raw_request_v1","logical_call_type":kind,"logical_call_index":index,"sample_id":sample_id,"method":"POST","path":"/v1/chat/completions","request":dict(request),"request_sha256":canonical_json_hash(request)}
 
+def _planner_artifact_path(request_path, suffix):
+    path=Path(request_path); return path.with_name(path.name.replace("_request.json",suffix))
+
+def record_planner_full_local_validation(endpoint, validation):
+    path=_planner_artifact_path(endpoint["raw_request_path"],"_full_local_validation.json")
+    record={"schema_version":"certa_active_v1_full_local_validation_v1","ok":validation.ok,"parse_ok":validation.parse_ok,"errors":validation.errors,"plan_rejections":validation.plan_rejections,"resource_warnings":validation.resource_warnings,"valid_plan_count":validation.valid_plan_count,"normalized_payload_sha256":canonical_json_hash(validation.normalized_payload)}; w(path,record)
+    riskpath=_planner_artifact_path(endpoint["raw_request_path"],"_schema_risk_record.json"); risk=j(riskpath); risk["full_local_validator"]=record; risk["full_local_validation_path"]=str(path); risk["full_local_validation_file_sha256"]=sha(path); w(riskpath,risk)
+
 def cera_response_contract(prompt):
     value=prompt.split("2. Required JSON response schema:\n",1)[1].split("\n\n3. Compact registry-backed contrast:",1)[0]
     return json.loads(value)
@@ -77,17 +87,27 @@ def cera_response_contract(prompt):
 def generator():
     return OpenAIChatGenerator(model="Qwen3-8B",api_base_url="http://127.0.0.1:30338/v1",api_key_env="EMPTY",timeout=120,max_retries=0,rate_limit_seconds=0,max_model_len=32768,cache_path="",cache_mode="off",backend_name="vllm_chat")
 
-def model_call(gen, kind, sample_id, prompt, max_tokens, *, schema=None):
+def model_call(gen, kind, sample_id, prompt, max_tokens, *, schema=None, full_schema=None, planner_view=None):
     ledger=jl(OUT/"logs/ENDPOINT_LEDGER.jsonl"); idx=len(ledger); fmt=None
     if schema is not None: fmt={"type":"json_schema","json_schema":{"name":kind.lower(),"schema":schema,"strict":True}}
     req=gen._completion_request_kwargs(prompt=prompt,max_new_tokens=max_tokens,temperature=0,top_p=1,response_format=fmt)
     rawdir=OUT/"raw"/kind.lower(); rp=rawdir/f"{idx:03d}_{sample_id}_request.json"; sp=rawdir/f"{idx:03d}_{sample_id}_response.json"
     w(rp,request_record(kind,idx,sample_id,req)); started=now()
+    risk=riskpath=None
+    if full_schema is not None:
+        if schema is None or planner_view is None: raise ValueError("planner_transport_evidence_incomplete")
+        fullpath=_planner_artifact_path(rp,"_full_schema.json"); transportpath=_planner_artifact_path(rp,"_transport_schema.json"); w(fullpath,full_schema); w(transportpath,schema)
+        risk={"schema_version":"certa_active_v1_planner_schema_risk_v1","sample_id":sample_id,"logical_call_type":kind,"arm":kind.split("_PLANNER_",1)[-1],"prompt_sha256":hashlib.sha256(prompt.encode()).hexdigest(),"planner_view_sha256":canonical_json_hash(planner_view),"projection_source_sha256":sha(REPO/"certa/active_v1/planner_transport_projection.py"),"full_schema_path":str(fullpath),"transport_schema_path":str(transportpath),"raw_request_path":str(rp),"raw_request_sha256":sha(rp),"transport_risk":scan_schema(schema,DEFAULT_LIMITS),"full_local_validator":"PENDING",**planner_transport_schema_identity(full_schema,schema)}; riskpath=_planner_artifact_path(rp,"_schema_risk_record.json"); w(riskpath,risk)
+        if not risk["transport_risk"]["risk_scan_pass"] or not risk["all_preservation_checks_pass"]: raise ValueError("planner_transport_preflight_failed")
+    def finish_response(value):
+        w(sp,value)
+        if risk is not None:
+            risk.update({"raw_response_path":str(sp),"raw_response_sha256":sha(sp)}); w(riskpath,risk)
     try:
         result=(gen.generate_json_schema(prompt,response_schema=schema,schema_name=kind.lower(),max_new_tokens=max_tokens,temperature=0,top_p=1) if schema is not None else gen.generate([prompt],max_new_tokens=max_tokens,temperature=0,top_p=1)[0])
     except Exception as exc:
-        w(sp,{"schema_version":"certa_active_v1_raw_response_v1","ok":False,"error_type":type(exc).__name__,"error_sha256":hashlib.sha256(str(exc).encode()).hexdigest()}); ledger.append({"schema_version":"certa_active_v1_endpoint_ledger_v1","logical_call_type":kind,"logical_call_index":idx,"sample_id":sample_id,"method":"POST","path":"/v1/chat/completions","raw_request_path":str(rp),"raw_response_path":str(sp),"started_at":started,"completed_at":now(),"transport_attempts":1,"cache_hit":False,"request_sha256":sha(rp),"response_sha256":sha(sp),"usage":{},"generation_seconds":0,"failed":True}); wl(OUT/"logs/ENDPOINT_LEDGER.jsonl",ledger); raise
-    w(sp,{"schema_version":"certa_active_v1_raw_response_v1","ok":True,"generation":result,"generation_sha256":canonical_json_hash(result)})
+        finish_response({"schema_version":"certa_active_v1_raw_response_v1","ok":False,"error_type":type(exc).__name__,"error_sha256":hashlib.sha256(str(exc).encode()).hexdigest()}); ledger.append({"schema_version":"certa_active_v1_endpoint_ledger_v1","logical_call_type":kind,"logical_call_index":idx,"sample_id":sample_id,"method":"POST","path":"/v1/chat/completions","raw_request_path":str(rp),"raw_response_path":str(sp),"started_at":started,"completed_at":now(),"transport_attempts":1,"cache_hit":False,"request_sha256":sha(rp),"response_sha256":sha(sp),"usage":{},"generation_seconds":0,"failed":True}); wl(OUT/"logs/ENDPOINT_LEDGER.jsonl",ledger); raise
+    finish_response({"schema_version":"certa_active_v1_raw_response_v1","ok":True,"generation":result,"generation_sha256":canonical_json_hash(result)})
     ledger.append({"schema_version":"certa_active_v1_endpoint_ledger_v1","logical_call_type":kind,"logical_call_index":idx,"sample_id":sample_id,"method":"POST","path":"/v1/chat/completions","raw_request_path":str(rp),"raw_response_path":str(sp),"started_at":started,"completed_at":now(),"transport_attempts":1,"cache_hit":False,"request_sha256":sha(rp),"response_sha256":sha(sp),"usage":result.get("api_usage",{}),"generation_seconds":result.get("generation_seconds",0)})
     wl(OUT/"logs/ENDPOINT_LEDGER.jsonl",ledger); return str(result.get("text") or ""),result
 
@@ -112,7 +132,7 @@ def freeze():
     fixture=REPO/"tests/active_v1/fixtures/final_completion"
     for name in ("CONSTRUCTOR_CAPABILITY_MATRIX","DECISION_CAPABILITY_MATRIX"): bound_copy(fixture/f"{name}.fixture.json",OUT/"freeze"/f"{name}.json")
     for name in ("CONSTRUCTOR_CAPABILITY_MATRIX","DECISION_CAPABILITY_MATRIX"): jsonschema.validate(j(OUT/"freeze"/f"{name}.json"),j(REPO/"schemas/active_v1"/f"{name}.schema.json"))
-    sources=["graph_builder.py","run_cscr_pipeline.py","certa/active_v1/planner_bridge_v3.py","certa/active_v1/artifact_authority.py","certa/active_v1/decision_adapter.py","certa/active_v1/answer_authority.py","certa/active_v1/role_contract_v3.py","certa/planner/schema_view.py","certa/planner/typed_planner.py","certa/grounding/plan_closure.py","certa/grounding/support_partition.py","certa/operations/contracts.py","certa/derivations/project.py","certa/derivations/answer_equivalence.py","certa/derivations/iade.py","certa/derivations/contrast.py","certa/egra/evidence_cards.py","certa/egra/retrieval.py","certa/repair/repair_prompt.py","certa/repair/safety_validator.py","certa/repair/causal_epistemic_agent.py","tools/certa_active_v1_completion.py","configs/profiles/certa_active_v1.env"]
+    sources=["graph_builder.py","run_cscr_pipeline.py","certa/active_v1/planner_bridge_v3.py","certa/active_v1/planner_transport_projection.py","certa/active_v1/artifact_authority.py","certa/active_v1/decision_adapter.py","certa/active_v1/answer_authority.py","certa/active_v1/role_contract_v3.py","certa/planner/schema_view.py","certa/planner/typed_planner.py","certa/grounding/plan_closure.py","certa/grounding/support_partition.py","certa/operations/contracts.py","certa/derivations/project.py","certa/derivations/answer_equivalence.py","certa/derivations/iade.py","certa/derivations/contrast.py","certa/egra/evidence_cards.py","certa/egra/retrieval.py","certa/repair/repair_prompt.py","certa/repair/safety_validator.py","certa/repair/causal_epistemic_agent.py","tools/certa_active_v1_completion.py","tools/certa_active_v1_schema_risk_scanner.py","configs/profiles/certa_active_v1.env"]
     default_frozen=["certa/egra/retrieval.py","certa/repair/causal_epistemic_agent.py","certa/planner/typed_planner.py","certa/grounding/plan_closure.py","certa/operations/contracts.py","certa/derivations/project.py","certa/active_v1/role_contract_v3.py"]
     drift=[x for x in default_frozen if git("rev-parse",f"HEAD:{x}")!=git("rev-parse",f"{START}:{x}")]
     if drift: raise RuntimeError("default_frozen_source_changed:"+"|".join(drift))
@@ -169,7 +189,7 @@ def constructor(split, limit, arms):
             try:
                 if arm!="C0_SCHEMA_ONLY" and not (role and role.get("supported")): raise ValueError("unsupported_or_invalid_role_no_call")
                 if arm=="C2_ROLE_RETRIEVAL" and retrieval is None: raise ValueError("c2_retrieval_unavailable")
-                built=build_v3_arm_view(arm,rt["question"],graph,table,role,retrieval,matrix,output_schema=rschema,canonical_registry=registry); view=built.view; pschema=build_typed_planner_response_schema(view,require_signature_id=True); prompt=build_typed_derivation_planner_prompt(view); text,out=model_call(gen,f"{split.upper()}_PLANNER_{arm}",sid,prompt,512,schema=pschema); comp=compile_active_planner_payload(text,view,matrix)
+                built=build_v3_arm_view(arm,rt["question"],graph,table,role,retrieval,matrix,output_schema=rschema,canonical_registry=registry); view=built.view; pschema=build_typed_planner_response_schema(view,require_signature_id=True); tschema=build_planner_transport_schema(pschema); prompt=build_typed_derivation_planner_prompt(view); text,out=model_call(gen,f"{split.upper()}_PLANNER_{arm}",sid,prompt,512,schema=tschema,full_schema=pschema,planner_view=view); validation=validate_typed_planner_output(text,view,require_signature_id=True); record_planner_full_local_validation(jl(OUT/"logs/ENDPOINT_LEDGER.jsonl")[-1],validation); comp=compile_active_planner_payload(text,view,matrix)
                 if not comp.ok: raise ValueError("planner_invalid:"+"|".join(comp.errors))
                 closure=close_compiled_payload(comp,graph,matrix); bundle=serialize_plan_closure(closure,context=ArtifactContext(sid,rt["table_id"],arm,(role or {}).get("role_id","SCHEMA_ONLY")),initial_answer=b0m[sid]["b0_answer"]); grounds.extend(bundle.raw_groundings); derivs.extend(bundle.raw_derivations); regs.extend(bundle.registry_entries)
                 state={"sample_id":sid,"arm":arm,"graph_sha256":canonical_json_hash(graph.to_dict()),"catalog_sha256":catalog.get("catalog_sha256"),"cards_sha256":canonical_json_hash(cards),"planner_view_sha256":canonical_json_hash(view),"normalized_payload":comp.normalized_payload,"allowed_signature_ids":list(comp.allowed_signature_ids),"role":role,"retrieval":retrieval,"closure_sha256":canonical_json_hash(closure.to_dict()),"planner_endpoint_record":jl(OUT/"logs/ENDPOINT_LEDGER.jsonl")[-1],"planner_usage":out.get("api_usage",{})}; w(d/"STATE"/f"{sid}_{arm}.json",state)
