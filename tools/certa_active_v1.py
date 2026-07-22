@@ -42,6 +42,7 @@ from certa.reproducibility.canonical_json import canonical_json, canonical_json_
 
 PACK = Path("/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_FINAL_METHOD_GOAL_REVISED_PACK")
 DESIGN_SIGNATURE_IDS = tuple(ROLE_TUPLES)
+ROLE_INTERFACE_SCHEMA_VERSION = "certa_active_role_interface_freeze_v2"
 FROZEN_LEGACY_HASHES = {
     "certa/egra/retrieval.py": "02d30f80ac2e3c0827c4eaf819a2aa0f66b50e42cd1b93681041fc1a25995552",
     "certa/repair/causal_epistemic_agent.py": "77619174cad1695cc11db73e2cf436c1b3d356a70e7b94b4d5870e5e0d9a9787",
@@ -342,7 +343,7 @@ def freeze_role_interface(matrix_path: Path, output: Path, profile_path: Path) -
     }
     _write_json(source_manifest_path, source_manifest)
     interface = {
-        "schema_version": "certa_active_role_interface_freeze_v1",
+        "schema_version": ROLE_INTERFACE_SCHEMA_VERSION,
         "method_sha": method_sha,
         "role_source_sha256": canonical_json_hash(source_manifest),
         "prompt_sha256": _sha256(prompt_path),
