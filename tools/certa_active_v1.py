@@ -9,11 +9,16 @@ import hashlib
 import inspect
 import json
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Mapping
 
 import jsonschema
+
+REPO = Path(__file__).resolve().parents[1]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
 
 from graph_builder import EdgeType, GraphEdge, GraphNode, HCEG, NodeType
 
@@ -35,7 +40,6 @@ from certa.planner.typed_planner import PLANNER_VERSION
 from certa.reproducibility.canonical_json import canonical_json, canonical_json_hash
 
 
-REPO = Path(__file__).resolve().parents[1]
 PACK = Path("/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_FINAL_METHOD_GOAL_REVISED_PACK")
 DESIGN_SIGNATURE_IDS = tuple(ROLE_TUPLES)
 FROZEN_LEGACY_HASHES = {
