@@ -1,0 +1,241 @@
+/goal CERTA_ACTIVE_V1_FINAL_COVERAGE_PRESERVING_RETRIEVAL_COMPLETION
+
+Use the immutable Pack at:
+`/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_FINAL_COVERAGE_PRESERVING_RETRIEVAL_COMPLETION_PACK`
+
+This is the last authorized CERTA Active V1 method-completion Goal. Execute it rather than spending a turn restating governance.
+
+Start from the clean pushed branch:
+`research/certa-active-v1-grounding-authority-final@a6818af3c157f3416bdff84925e003e36b3c4583`
+
+Create and push exactly one new branch:
+`research/certa-active-v1-coverage-preserving-retrieval-final`
+
+Preserve permanently all previous output roots and terminals, including:
+
+- `CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_REPLAY`;
+- `CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY`;
+- `CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2R2_CONTROLLER_RECOVERY_FINAL_SCIENTIFIC_DAG`.
+
+The prior Gate C V3 result is valid and safety-clean. It established:
+
+```text
+C0: 2 derivations, 0 paired rows
+C1: 29 derivations, 1 paired row
+C2: 6 derivations, 0 paired rows
+C2 paired gain = -1
+C2 registry gain = -1
+role-compatible precision = 1.0
+all 11 safety counters = 0
+```
+
+Scientific diagnosis: current C2 destructively replaces the complete C1 Planner schema with at most 64 retrieved header node IDs and deletes every schema edge whose endpoints are not both selected. This is a retrieval-recall and structural-connectivity defect. Assignment-level grounding authority V3 is accepted and must not be changed.
+
+Read and obey:
+
+- `RESEARCH_DIRECTOR_DECISION.md`;
+- `METHOD_CONTRACT.md`;
+- `IMPLEMENTATION_BOUNDARY.md`;
+- `SCIENTIFIC_EXECUTION_PROTOCOL.md`;
+- `SUBAGENT_PROTOCOL.md`;
+- `SOURCE_AND_EVIDENCE_BINDINGS.json`;
+- `FINAL_METHOD_CLAIM_LEDGER.md`.
+
+## 1. Validate bindings and repository
+
+```bash
+export CERTA_ACTIVE_PYTHON=/home/hsh/anaconda3/envs/table-cu128/bin/python
+export CERTA_REPO=/home/hsh/ME/Table/EMNLP2026/CERTA
+export CERTA_PACK=/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_FINAL_COVERAGE_PRESERVING_RETRIEVAL_COMPLETION_PACK
+export CERTA_PRIOR_REPLAY=/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_REPLAY
+export CERTA_PRIOR_GATE=/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY
+export CERTA_PRIOR_V2R2=/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2R2_CONTROLLER_RECOVERY_FINAL_SCIENTIFIC_DAG
+export CERTA_OUTPUT=/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_FINAL_COVERAGE_PRESERVING_RETRIEVAL
+export NO_PROXY=127.0.0.1,localhost
+export no_proxy=127.0.0.1,localhost
+
+cd "$CERTA_PACK"
+sha256sum -c SHA256SUMS.txt
+"$CERTA_ACTIVE_PYTHON" validate_pack.py --pack-root "$CERTA_PACK"
+test ! -e "$CERTA_OUTPUT"
+
+cd "$CERTA_REPO"
+git fetch --prune origin
+test "$(git branch --show-current)" = "research/certa-active-v1-grounding-authority-final"
+test "$(git rev-parse HEAD)" = "a6818af3c157f3416bdff84925e003e36b3c4583"
+test "$(git rev-parse origin/research/certa-active-v1-grounding-authority-final)" = "a6818af3c157f3416bdff84925e003e36b3c4583"
+test -z "$(git status --porcelain)"
+```
+
+Verify every Git blob and prior artifact hash in `SOURCE_AND_EVIDENCE_BINDINGS.json`, including the 538-entry prior replay manifest and the valid Gate C V3 recovery terminal. Stop before editing on any mismatch.
+
+## 2. Verify the user-managed Qwen3-8B service
+
+Codex may inspect but must not start, stop, restart, signal or reconfigure vLLM.
+
+Verify three rounds of:
+
+- `GET http://127.0.0.1:30338/health` returning HTTP 200;
+- `GET http://127.0.0.1:30338/v1/models` returning exactly `Qwen3-8B`.
+
+Record port owner, PID, executable, cmdline and GPU environment under the new output root. These are infrastructure records, not method inputs. If the service is unavailable, finalize an infrastructure terminal without source edits.
+
+## 3. Run four read-only pre-implementation auditors
+
+The main agent creates the new output root and invokes the four sub-agents from `SUBAGENT_PROTOCOL.md`.
+
+Before implementation, require at least:
+
+- `01_RETRIEVAL_PROJECTION_FAILURE_ANALYSIS.md` to identify the prior C1 paired sample and account for C1 derivations lost in C2;
+- a concise preliminary domain audit proving the current C2 view is a strict projection of C1.
+
+Sub-agents may not edit repository files or call model endpoints.
+
+## 4. Implement only coverage-preserving retrieval guidance
+
+Create:
+
+```bash
+git switch -c research/certa-active-v1-coverage-preserving-retrieval-final
+```
+
+Modify only the files authorized by `IMPLEMENTATION_BOUNDARY.md`.
+
+Required semantics:
+
+1. For the same table, question and Role V3 record, corrected C2 must retain byte-identical `schema_nodes` and `schema_edges` to C1.
+2. C2 must add a canonical closed `retrieval_focus` record containing sorted unique focus node IDs, selected card IDs, `mode=advisory_complete_domain`, and `reference_domain_complete=true`.
+3. Retrieval focus must be a subset of the complete schema domain.
+4. The typed response schema for C2 must be byte-identical to C1 because both use the same legal reference domain.
+5. The C2 Planner prompt may prefer focus nodes, but every complete-domain node remains legal.
+6. The Planner instruction must permit finite Role-compatible alternatives outside focus when structurally necessary; it must not require fabricated alternatives.
+7. Retrieval focus must not enter grounding authority, execution scoring, registry authority or Decision.
+8. C0 and C1 prompt bytes must remain unchanged.
+
+Do not modify:
+
+- `certa/egra/retrieval.py`, E5 model, top-K or budgets;
+- Role V3;
+- operation contracts;
+- Planner output grammar or plan-count limits;
+- transport projection;
+- structural resolvers or closure;
+- assignment-level authority V3;
+- executor, projection, provenance or registry;
+- Gate C thresholds;
+- Decision, CERA, validator or materializer;
+- sample IDs, cohorts or gold firewall.
+
+Do not add a reranker, score, threshold, second Planner, self-consistency sampling, answer-conditioned heuristic, manual sample patch or new intervention family.
+
+## 5. Tests and mechanical proof
+
+Add focused tests proving:
+
+1. old C2 destructive filtering no longer occurs;
+2. C1 and C2 node domains are identical;
+3. C1 and C2 edge domains are identical;
+4. C1 and C2 response schemas are identical;
+5. focus IDs are canonical and within the domain;
+6. focus annotations do not change schema IDs;
+7. C0/C1 prompts remain byte-identical;
+8. C2 prompt contains the advisory-complete-domain rule;
+9. proposal, B0, gold, correctness, confidence, scores and answer agreement remain forbidden;
+10. identical Planner payloads close to identical derivations regardless of focus metadata;
+11. direct-script and `python -m` entrypoints for every new executable tool work from outside the repository;
+12. all existing tests remain passing.
+
+Run the complete offline suite. Enforce production and test LOC limits. Verify all explicitly frozen blobs.
+
+The main agent may make local corrections before the first commit. Then create one normal commit and push the new branch. After push, source is immutable. No post-result source edit is permitted.
+
+## 6. Prove C0/C1 reuse eligibility
+
+Reconstruct all C0 and C1 dev64 Planner views, prompts, full schemas, transport schemas, normalized payloads, graphs and closures from prior frozen artifacts.
+
+Require per sample/arm:
+
+- prompt SHA matches the prior raw request;
+- full response-schema SHA matches;
+- transport-schema SHA matches;
+- normalized payload SHA matches;
+- graph SHA matches;
+- closure SHA matches;
+- V3 serialized derivation semantics match.
+
+Endpoint calls for C0 and C1 must be zero. If any C0/C1 prompt or schema differs, stop before C2 calls rather than silently reusing incompatible evidence.
+
+Write `freeze/C0_C1_REUSE_BINDING.json`.
+
+## 7. C2 Integration16
+
+Use the current user-managed Qwen3-8B endpoint. For only the first 16 C2 samples:
+
+- use the frozen Role records and retrieval configuration;
+- build the complete-domain C2 view plus advisory focus;
+- record C1/C2 node-domain, edge-domain and response-schema hashes;
+- make one Planner POST per eligible C2 sample;
+- use temperature 0, top_p 1, max tokens 512 and zero retries;
+- run full-local validation, compilation, closure, assignment authority V3, execution, projection, provenance and registry reconciliation.
+
+Scientific POST calls have zero retries. Never retry parse, schema, validation, grounding, closure, execution, projection, provenance, registry, length or answer failures.
+
+Run `RetrievalDomainMonotonicityAuditor` and `IntegrationFailureTaxonomist`. Only Integration16 PASS and domain-monotonicity PASS authorize the remaining C2 samples.
+
+## 8. Complete C2 dev64 and compute unchanged Gate C V3
+
+Run the remaining 48 C2 samples only. Reuse C0/C1 through the frozen binding. Close exactly 192 matched identities and compute the existing repo-native Gate C V3 with unchanged thresholds.
+
+Run `ContrastCompletenessAuditor` and `HostileAAAIMethodAuditor`.
+
+Report per arm, signature and table:
+
+- authorized rows;
+- executable rows and derivation counts;
+- original-only, alternative-only and paired rows;
+- registry-complete paired rows;
+- paired tables;
+- role-compatible precision;
+- paired and registry gains;
+- focus-hit and non-focus derivations;
+- C1 derivations retained or recovered in C2;
+- prompt/completion tokens and latency;
+- every safety counter and exact failure reason.
+
+## 9. Terminal policy
+
+Do not modify Gate thresholds or reinterpret failure.
+
+```text
+Gate C V3 PASS
+→ FREEZE_CERTA_ACTIVE_METHOD_READY_FOR_FINAL_DECISION_EXECUTION
+
+Safety-clean Gate C V3 failure
+→ FREEZE_CERTA_ACTIVE_COVERAGE_PRESERVING_RETRIEVAL_VALID_NO_PAIRED_CONTRAST
+```
+
+Any safety failure, identity drift, unauthorized access or unexplained artifact mismatch must use a distinct failure terminal.
+
+A valid no-paired-contrast terminal permanently stops further Active V1 method development. Do not propose or implement another component.
+
+Decision, CERA, dev gold, unblinding and holdout are forbidden in this Goal, even after Gate PASS.
+
+## 10. Final return
+
+Return:
+
+- exact commit and pushed branch;
+- source diff and LOC report;
+- complete test logs and entrypoint smoke tests;
+- four auditor reports;
+- C0/C1 reuse binding;
+- Integration16 evidence;
+- full C2 focus ledger;
+- matched Constructor artifacts;
+- unchanged Gate C V3;
+- mechanism metrics and cost ledger;
+- final terminal, checksums and verified Git bundle;
+- clean synchronized repository status;
+- a concise scientific interpretation consistent with `FINAL_METHOD_CLAIM_LEDGER.md`.
+
+Do not spend a Goal turn restating governance before executing.
