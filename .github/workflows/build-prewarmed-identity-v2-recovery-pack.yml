@@ -1,0 +1,57 @@
+name: Build prewarmed identity V2 recovery pack
+on:
+  pull_request:
+    branches: ["research/certa-active-v1"]
+    paths:
+      - "CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_RECOVERY_PACK/**"
+      - ".github/workflows/build-prewarmed-identity-v2-recovery-pack.yml"
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACK=CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_RECOVERY_PACK
+          chmod +x "$PACK/PREWARMED_IDENTITY_REFREEZE.py" "$PACK/RUNTIME_CONTROLLER_ADOPT_V2.py" "$PACK/validate_pack.py"
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root=Path('CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_RECOVERY_PACK')
+          rows=[]
+          for path in sorted(root.rglob('*')):
+              if path.is_file() and path.name != 'SHA256SUMS.txt':
+                  rows.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(root)}")
+          (root/'SHA256SUMS.txt').write_text('\n'.join(rows)+'\n', encoding='utf-8')
+          PY
+      - name: Validate and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACK=CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_RECOVERY_PACK
+          python3 "$PACK/validate_pack.py" --pack-root "$PACK" | tee VALIDATION.log
+          zip -qr "${PACK}.zip" "$PACK"
+          sha256sum "${PACK}.zip" | tee "${PACK}_ZIP_SHA256.txt"
+      - name: Publish validation record
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const validation = fs.readFileSync('VALIDATION.log','utf8');
+            const zipSha = fs.readFileSync('CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_RECOVERY_PACK_ZIP_SHA256.txt','utf8').trim();
+            const body = `<!-- CERTA_IDENTITY_V2_RECOVERY_VALIDATION -->\nWorkflow run: ${context.runId}\nHead SHA: ${context.sha}\n\n\`\`\`text\n${validation}\n\`\`\`\n\n${zipSha}`;
+            await github.rest.issues.createComment({owner:context.repo.owner,repo:context.repo.repo,issue_number:context.issue.number,body});
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_RECOVERY_PACK
+          path: |
+            CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_RECOVERY_PACK.zip
+            CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_RECOVERY_PACK_ZIP_SHA256.txt
+            VALIDATION.log
+          if-no-files-found: error
+          retention-days: 30
