@@ -41,7 +41,15 @@ jobs:
           zip -qr "${PACK}.zip" "$PACK"
           sha256sum "${PACK}.zip" > "${PACK}_ZIP_SHA256.txt"
           exit 0
+      - name: Print validation diagnostics
+        if: always()
+        shell: bash
+        run: |
+          echo "VALIDATION_EXIT=$(cat VALIDATION.exit)"
+          cat VALIDATION.log
+          cat CERTA_ACTIVE_V1_PREWARMED_SERVICE_ADOPTION_CONTROLLER_PACK_ZIP_SHA256.txt
       - name: Upload build diagnostics and pack
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: CERTA_ACTIVE_V1_PREWARMED_SERVICE_ADOPTION_CONTROLLER_PACK
