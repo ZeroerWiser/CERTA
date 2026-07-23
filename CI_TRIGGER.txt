@@ -1,1 +1,1 @@
-trigger validated pack build
+trigger validated pack build v2
