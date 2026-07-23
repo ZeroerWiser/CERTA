@@ -1,0 +1,40 @@
+/goal CERTA_ACTIVE_V1_SET_VALUED_GROUNDING_AUTHORITY_FINALIZATION
+
+Use the immutable Pack at:
+`/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_SET_VALUED_GROUNDING_AUTHORITY_FINALIZATION_PACK`
+
+This is the last authorized CERTA method-source correction. It supersedes `FREEZE_CERTA_ACTIVE_CONSTRUCTOR_FAILED` only for the predeclared grounding-authority semantics correction in this Pack. Preserve the old terminal and output root permanently.
+
+Operate from clean `research/certa-active-v1@a1e8a7c761fc1f51b56d5d029a94901477eafb55`. Do not modify Role V3, retrieval, Planner prompts/views, full or transport Planner semantics, operation contracts, plan closure enumeration, executor, projection, provenance construction, Decision policy, cohorts, gold firewall or any scientific threshold.
+
+The diagnosed inconsistency is specific: closure constructs a finite set of canonical executable hypotheses, while the artifact layer grants authority only when the entire plan has one valid binding. Correct authority is a finite set of all individually resolver-UNIQUE bindings, not a ranked or first-match choice.
+
+First validate the Pack and every hash in `INPUT_BINDINGS.md`. Then perform Phase A with zero endpoint calls and zero gold/sealed access. Read the immutable 192-row Constructor64 artifacts and produce the forensic and shadow files required by `OFFLINE_REPLAY_AND_GATES.md`.
+
+Run four stage-bound read-only agents from `SUBAGENTS.md`. They cannot edit files or call endpoints. The main agent alone integrates their findings.
+
+Gate A must prove that authorized binding IDs equal exactly the existing valid candidate IDs; every candidate is individually resolver-UNIQUE with nonempty operands; invalid/ambiguous/resource-incomplete assignments remain excluded; singleton rows are unchanged; derivation/program/answer/side/provenance hashes do not drift; and no score, first-match, gold or answer correctness is used.
+
+If Gate A fails, emit `FREEZE_CERTA_ACTIVE_SET_VALUED_AUTHORITY_INVALID`, preserve the evidence and stop permanently.
+
+If Gate A passes, recompute shadow Gate C using the original cohort and all original thresholds unchanged. Reconciliation may change only from singleton equality to membership in `authorized_binding_ids`. No Planner output, raw execution, answer, side, provenance, registry content, cohort or threshold may change.
+
+If shadow Gate C does not pass exactly as specified by `GATE_Q.json`, emit `FREEZE_CERTA_ACTIVE_SET_VALUED_AUTHORITY_INSUFFICIENT`. Make no production commit, make no model call, stop method engineering and return the claim contraction required for the paper.
+
+Only Gate A and Gate Q PASS authorize implementation. Modify only the files and LOC permitted in `OFFLINE_REPLAY_AND_GATES.md`. Use a versioned grounding schema and versioned Gate calculator. Preserve singleton compatibility. Multiple valid bindings remain separate executable hypotheses; do not collapse by answer equivalence or choose a preferred answer.
+
+Run all existing tests plus focused authority tests. Require zero default-frozen Planner/closure/operation/retrieval/Decision changes. Create one ordinary commit, push normally, verify local equals remote and freeze exact source/blob/schema/calculator identities.
+
+Use a new, never-existing output root and the verified user-managed Qwen3-8B service. Run a complete new Integration16, then Constructor64 and the unchanged live Gate C. Scientific POST calls have zero retries. At any runtime identity loss, preserve the checkpoint and stop; do not manage the service.
+
+At any Integration or live Gate C failure, atomically finalize and stop permanently. Return sample/arm-level failure taxonomy and signature/operation/table evidence rather than only a terminal string.
+
+Only live Gate C PASS continues to the already frozen actual Decision chain: B0_KEEP, DETERMINISTIC_SELECTOR and CERA_PLUS_VALIDATOR; freeze selected-final before one dev unblind; compute Gate O, selected-final versus B0, CC/CW/WC/WW, changed-WW, commit precision, confidence intervals, McNemar, operation/signature/table breakdown and cost.
+
+Decision-inactive or ineligible rows make zero CERA calls and keep B0. Every changed answer must cite an executed authorized registry derivation, pass the frozen validator and be deterministically materialized.
+
+Only positive dev Gates authorize the blind table-disjoint holdout. No post-unblind method change is allowed. Only a positive holdout authorizes `FREEZE_CERTA_ACTIVE_METHOD_EXPERIMENT_ONLY`.
+
+At the first scientific failure, stop permanently. No second grounding fix, Role V4, second Planner, second Constructor, second Decision policy, new intervention family, score, reranker or threshold is authorized.
+
+Return the forensic rows, Gate A, shadow reconciliation, shadow Gate C, all four auditor reports, exact source diff/LOC/tests/commit, new Integration/Constructor artifacts, actual selected-final and CC/CW/WC/WW if reached, holdout if reached, cost, final terminal, checksums, verified Git bundle and clean Git status.
