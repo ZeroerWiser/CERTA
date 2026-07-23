@@ -1,0 +1,51 @@
+name: Build Gate C V3 recovery pack
+on:
+  pull_request:
+    branches: ["research/certa-active-v1-grounding-authority-final"]
+    paths:
+      - "CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY_AND_DECISION_UNLOCK_PACK/**"
+      - ".github/workflows/build-gate-c-v3-recovery-pack.yml"
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate checksums and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACK=CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY_AND_DECISION_UNLOCK_PACK
+          chmod +x "$PACK/GATE_C_V3_RECOVERY.py" "$PACK/validate_pack.py"
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root=Path('CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY_AND_DECISION_UNLOCK_PACK')
+          rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file() and p.name != 'SHA256SUMS.txt':
+                  rows.append(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(root)}")
+          (root/'SHA256SUMS.txt').write_text('\n'.join(rows)+'\n', encoding='utf-8')
+          PY
+          python3 "$PACK/validate_pack.py" --pack-root "$PACK" | tee VALIDATION.log
+          zip -qr "${PACK}.zip" "$PACK"
+          sha256sum "${PACK}.zip" > "${PACK}_ZIP_SHA256.txt"
+      - name: Publish validation result
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const validation = fs.readFileSync('VALIDATION.log','utf8');
+            const zipSha = fs.readFileSync('CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY_AND_DECISION_UNLOCK_PACK_ZIP_SHA256.txt','utf8').trim();
+            const body = `<!-- CERTA_GATE_C_V3_RECOVERY_PACK -->\nWorkflow run: ${context.runId}\nHead SHA: ${context.sha}\n\n\`\`\`text\n${validation}\n\`\`\`\n\n${zipSha}`;
+            await github.rest.issues.createComment({owner:context.repo.owner,repo:context.repo.repo,issue_number:context.issue.number,body});
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY_AND_DECISION_UNLOCK_PACK
+          path: |
+            CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY_AND_DECISION_UNLOCK_PACK.zip
+            CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY_AND_DECISION_UNLOCK_PACK_ZIP_SHA256.txt
+            VALIDATION.log
+          retention-days: 30
