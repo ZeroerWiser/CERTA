@@ -3,12 +3,14 @@ on:
   pull_request:
     branches: ["artifacts/certa-runtime-stable-micro-pack-20260723"]
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
       - name: Build and validate
         shell: bash
         run: |
@@ -26,8 +28,17 @@ jobs:
           (root/'SHA256SUMS.txt').write_text('\n'.join(rows)+'\n')
           PY
           python3 "$PACK/validate_pack.py" --pack-root "$PACK"
+          rm -f "${PACK}.zip" "${PACK}_ZIP_SHA256.txt"
           zip -qr "${PACK}.zip" "$PACK"
-          sha256sum "${PACK}.zip" > "${PACK}_ZIP_SHA256.txt"
+          sha256sum "${PACK}.zip" | tee "${PACK}_ZIP_SHA256.txt"
+      - name: Publish validated files to isolated artifact branch
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add CERTA_ACTIVE_V1_RUNTIME_STABLE_FINAL_SCIENTIFIC_EXECUTION_MICRO_REVISED_PACK/SHA256SUMS.txt CERTA_ACTIVE_V1_RUNTIME_STABLE_FINAL_SCIENTIFIC_EXECUTION_MICRO_REVISED_PACK.zip CERTA_ACTIVE_V1_RUNTIME_STABLE_FINAL_SCIENTIFIC_EXECUTION_MICRO_REVISED_PACK_ZIP_SHA256.txt
+          git commit -m "build: publish validated runtime pack [skip ci]"
+          git push origin HEAD:${{ github.head_ref }}
       - uses: actions/upload-artifact@v4
         with:
           name: CERTA_RUNTIME_STABLE_MICRO_REVISED_PACK

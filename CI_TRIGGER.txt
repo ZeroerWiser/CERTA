@@ -1,1 +1,1 @@
-trigger validated pack build v2
+trigger validated pack delivery v3
