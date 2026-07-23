@@ -1,9 +1,7 @@
 name: Build CERTA runtime pack
 on:
-  push:
-    branches: ["artifacts/certa-runtime-stable-micro-pack-20260723"]
   pull_request:
-    branches: ["research/certa-active-v1"]
+    branches: ["artifacts/certa-runtime-stable-micro-pack-20260723"]
 permissions:
   contents: read
 jobs:
