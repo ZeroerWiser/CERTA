@@ -1,0 +1,39 @@
+name: Build prewarmed identity diagnostic
+on:
+  pull_request:
+    branches: ["research/certa-active-v1"]
+    paths:
+      - "CERTA_PREWARMED_IDENTITY_DIAGNOSTIC/**"
+      - ".github/workflows/build-prewarmed-identity-diagnostic.yml"
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR=CERTA_PREWARMED_IDENTITY_DIAGNOSTIC
+          python3 -m py_compile "$DIR/PREWARMED_IDENTITY_DIAGNOSTIC.py"
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root=Path('CERTA_PREWARMED_IDENTITY_DIAGNOSTIC')
+          rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file() and p.name != 'SHA256SUMS.txt':
+                  rows.append(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(root)}")
+          (root/'SHA256SUMS.txt').write_text('\n'.join(rows)+'\n', encoding='utf-8')
+          PY
+          zip -qr CERTA_PREWARMED_IDENTITY_DIAGNOSTIC.zip "$DIR"
+          sha256sum CERTA_PREWARMED_IDENTITY_DIAGNOSTIC.zip > CERTA_PREWARMED_IDENTITY_DIAGNOSTIC_ZIP_SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CERTA_PREWARMED_IDENTITY_DIAGNOSTIC
+          path: |
+            CERTA_PREWARMED_IDENTITY_DIAGNOSTIC.zip
+            CERTA_PREWARMED_IDENTITY_DIAGNOSTIC_ZIP_SHA256.txt
+          retention-days: 30
