@@ -1,0 +1,91 @@
+/goal CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_REFREEZE_AND_RESUME_FINAL_DAG
+
+Use the immutable controller-only recovery Pack at:
+`/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_RECOVERY_PACK`
+
+This command supersedes only the blocked mixed-lineage identity attempt. Preserve permanently the old output root, terminal, diagnostic archive, original identity archive and all logs. The old execution made zero scientific/transport calls, so no scientific checkpoint is carried forward.
+
+The Qwen3-8B service remains user-managed at PID `1349993`, GPU `3`, endpoint `127.0.0.1:30338`. Do not start, stop, restart, signal, replace or reconfigure it. Do not modify CERTA source or any frozen method object.
+
+Bind:
+
+```bash
+export CERTA_ACTIVE_PYTHON=/home/hsh/anaconda3/envs/table-cu128/bin/python
+export CERTA_V2_PACK=/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_RECOVERY_PACK
+export CERTA_DIAGNOSTIC=/home/hsh/ME/Table/EMNLP2026/certa_runtime_evidence/PREWARMED_IDENTITY_DIAGNOSTIC_20260723/PREWARMED_IDENTITY_DIAGNOSTIC.json
+export CERTA_V2_EVIDENCE_DIR=/home/hsh/ME/Table/EMNLP2026/certa_runtime_evidence/QWEN3_8B_PREWARMED_SERVICE_V2_20260723
+export CERTA_V2_ARCHIVE=/home/hsh/ME/Table/EMNLP2026/certa_runtime_evidence/QWEN3_8B_PREWARMED_SERVICE_V2_20260723.tar.gz
+export CERTA_V2_BINDING=/home/hsh/ME/Table/EMNLP2026/certa_runtime_evidence/QWEN3_8B_PREWARMED_SERVICE_V2_20260723_BINDING.json
+export CERTA_V2_OUTPUT_ROOT=/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_FINAL_SCIENTIFIC_DAG
+export NO_PROXY=127.0.0.1,localhost
+export no_proxy=127.0.0.1,localhost
+
+cd "$CERTA_V2_PACK"
+sha256sum -c SHA256SUMS.txt
+"$CERTA_ACTIVE_PYTHON" validate_pack.py --pack-root "$CERTA_V2_PACK"
+test ! -e "$CERTA_V2_EVIDENCE_DIR"
+test ! -e "$CERTA_V2_ARCHIVE"
+test ! -e "$CERTA_V2_BINDING"
+test ! -e "$CERTA_V2_OUTPUT_ROOT"
+```
+
+Run the read-only V2 refreeze exactly once:
+
+```bash
+"$CERTA_ACTIVE_PYTHON" "$CERTA_V2_PACK/PREWARMED_IDENTITY_REFREEZE.py" \
+  --diagnostic "$CERTA_DIAGNOSTIC" \
+  --evidence-dir "$CERTA_V2_EVIDENCE_DIR" \
+  --archive "$CERTA_V2_ARCHIVE" \
+  --binding-manifest "$CERTA_V2_BINDING"
+```
+
+This must verify the known diagnostic mismatch, current PID/start ticks, live argv and semantic vLLM arguments, GPU, process-tree port ownership, stdout/stderr live log identity, and three fresh readiness rounds. It must generate a new immutable V2 evidence archive and binding manifest without modifying the service.
+
+Adopt V2 identity under the new output root:
+
+```bash
+"$CERTA_ACTIVE_PYTHON" "$CERTA_V2_PACK/RUNTIME_CONTROLLER_ADOPT_V2.py" \
+  bootstrap-adopt-existing-service-v2 \
+  --repo /home/hsh/ME/Table/EMNLP2026/CERTA \
+  --output-root "$CERTA_V2_OUTPUT_ROOT" \
+  --evidence-archive "$CERTA_V2_ARCHIVE" \
+  --binding-manifest "$CERTA_V2_BINDING"
+```
+
+On PASS, proceed immediately through the frozen scientific DAG without a new design discussion:
+
+```bash
+"$CERTA_ACTIVE_PYTHON" "$CERTA_V2_PACK/RUNTIME_CONTROLLER_ADOPT_V2.py" integration16 --repo /home/hsh/ME/Table/EMNLP2026/CERTA --output-root "$CERTA_V2_OUTPUT_ROOT"
+```
+
+After Integration16 closes, run read-only `IntegrationFailureTaxonomist` and report the first failure stage for every sample/arm: transport, parse, full-local validation, Planner semantics, grounding, closure, execution, projection, provenance or registry. A terminal string alone is insufficient. Only unchanged Integration sentinel PASS continues.
+
+```bash
+"$CERTA_ACTIVE_PYTHON" "$CERTA_V2_PACK/RUNTIME_CONTROLLER_ADOPT_V2.py" constructor64 --repo /home/hsh/ME/Table/EMNLP2026/CERTA --output-root "$CERTA_V2_OUTPUT_ROOT"
+```
+
+Run read-only `PerSignatureConstructorAuditor`; report real-table constructor, paired executable contrast and registry-complete coverage by signature, operation family, table and failure stage. Only Gate C PASS continues.
+
+```bash
+"$CERTA_ACTIVE_PYTHON" "$CERTA_V2_PACK/RUNTIME_CONTROLLER_ADOPT_V2.py" decision-dev --repo /home/hsh/ME/Table/EMNLP2026/CERTA --output-root "$CERTA_V2_OUTPUT_ROOT"
+```
+
+Run actual B0_KEEP, DETERMINISTIC_SELECTOR and CERA_PLUS_VALIDATOR under frozen eligibility. Decision-inactive/ineligible rows make zero CERA calls and keep B0. Every changed answer must be registry-backed, executed, validator-approved, ID/hash reconciled and deterministically materialized. Freeze selected-final before gold.
+
+Run read-only `DecisionSafetyAuditor`, then:
+
+```bash
+"$CERTA_ACTIVE_PYTHON" "$CERTA_V2_PACK/RUNTIME_CONTROLLER_ADOPT_V2.py" unblind-dev --repo /home/hsh/ME/Table/EMNLP2026/CERTA --output-root "$CERTA_V2_OUTPUT_ROOT"
+```
+
+Compute Gate O, selected-final versus B0, CC/CW/WC/WW, changed-WW, commit precision, operation breakdown, calls/tokens/latency, bootstrap intervals and McNemar. Run read-only `AbstractClaimAuditor`.
+
+Only positive dev Gates authorize holdout:
+
+```bash
+"$CERTA_ACTIVE_PYTHON" "$CERTA_V2_PACK/RUNTIME_CONTROLLER_ADOPT_V2.py" holdout-blind --repo /home/hsh/ME/Table/EMNLP2026/CERTA --output-root "$CERTA_V2_OUTPUT_ROOT"
+"$CERTA_ACTIVE_PYTHON" "$CERTA_V2_PACK/RUNTIME_CONTROLLER_ADOPT_V2.py" unblind-holdout --repo /home/hsh/ME/Table/EMNLP2026/CERTA --output-root "$CERTA_V2_OUTPUT_ROOT"
+"$CERTA_ACTIVE_PYTHON" "$CERTA_V2_PACK/RUNTIME_CONTROLLER_ADOPT_V2.py" finalize --repo /home/hsh/ME/Table/EMNLP2026/CERTA --output-root "$CERTA_V2_OUTPUT_ROOT" --state FREEZE_CERTA_ACTIVE_METHOD_EXPERIMENT_ONLY
+```
+
+Scientific POST calls have zero retries. Never retry parse, local validation, grounding, closure, execution, projection, provenance, length, answer, validator or Gate failures. On service loss, preserve evidence and stop; Codex must not manage the service. At the first scientific failure, stop permanently. Only `FREEZE_CERTA_ACTIVE_METHOD_EXPERIMENT_ONLY` unlocks Goal E.
