@@ -13,6 +13,14 @@
     "tools/compute_certa_active_constructor_gate_v3.py": "5895fa5e282e069fa96f9033da5928bd381c671c",
     "tools/certa_active_v1_completion.py": "3978f357eee9177274b5caf0a9062fd4aa6b4681"
   },
+  "prior_assignment_authority_replay": {
+    "root": "/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_REPLAY",
+    "terminal_sha256": "dadb2d80c3aad30bd4382df6a7e417dbdfd5feb907d3740eef9bebb9b51d8ac1",
+    "failure_record_sha256": "37d2e7ebc80daca8ad2071bb94950620321a640d53d6c91dd2b253ee5cf8ce98",
+    "manifest_sha256": "419766026150f9d2e3b826aa67f6e784e32f9a6da1addcd56454c2589487cd0e",
+    "manifest_entries": 538,
+    "bundle_sha256": "d05580c1dd8694ca03fb8183645be193d4107a23a9edf78926db5ade91b316df"
+  },
   "prior_gate_recovery": {
     "root": "/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY",
     "gate_path": "constructor/CONSTRUCTOR_GATE_C_V3.json",
