@@ -1,0 +1,1 @@
+只压缩执行指令，不改变科学合同。GOAL_MODE_COMMAND缩减为科学执行DAG、阶段审计和停止条件；Git、外部工件、服务生命周期、readiness、checkpoint与exact replay继续由validate_pack.py和RUNTIME_CONTROLLER.py机械执行。新增短版EXECUTION_DAG.md。Role V3、Planner、transport projection、operation registry、cohort、Gate、threshold、Decision与论文claim boundary均保持冻结。

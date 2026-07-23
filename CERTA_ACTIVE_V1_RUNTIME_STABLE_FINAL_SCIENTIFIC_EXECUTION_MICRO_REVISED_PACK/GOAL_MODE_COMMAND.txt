@@ -1,0 +1,29 @@
+/goal CERTA_ACTIVE_V1_RUNTIME_STABLE_FINAL_SCIENTIFIC_EXECUTION
+
+Use the immutable Pack at:
+`/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_RUNTIME_STABLE_FINAL_SCIENTIFIC_EXECUTION_MICRO_REVISED_PACK`
+
+Run its `validate_pack.py`, then execute only through `RUNTIME_CONTROLLER.py`. The validator and controller own Git/source/artifact binding, new roots, service lifecycle, readiness, process/log identity, startup restart, checkpoint resume and the single mechanically permitted exact transport replay. Do not manually repeat those checks or produce a pre-execution design/risk essay.
+
+The scientific method is byte-frozen at `research/certa-active-v1@a1e8a7c761fc1f51b56d5d029a94901477eafb55`. Method edits, Role V3 rerun, transport-projection edits, new questions/labels/prompts/operations/interventions/thresholds, second Planner/Constructor/Decision policy and post-result tuning are forbidden.
+
+Allocate attention approximately: intake/readiness <=5%; Integration16 and real failure taxonomy 35%; matched dev64 Constructor and Gate C 30%; actual Decision and selected-final 20%; unblind, holdout, statistics and final claim audit 10%.
+
+Execute the DAG in `EXECUTION_DAG.md`:
+
+1. Controller intake and bounded readiness; frozen preflight once.
+2. Complete Integration16 and close all 16 samples / 48 arm identities.
+3. Run `IntegrationFailureTaxonomist`. For every sample and arm, return the first failure stage: transport, parse, full-local validation, Planner semantics, grounding, closure, execution, projection, provenance or registry. A terminal string alone is insufficient.
+4. Only Integration sentinel PASS continues to matched dev64 C0/C1/C2 and raw-artifact Gate C.
+5. Run `PerSignatureConstructorAuditor`; report real-table constructor, paired executable contrast and registry-complete coverage by signature, operation family, table and failure stage. Synthetic fixtures cannot substitute.
+6. Only Gate C PASS continues to blind actual Decision. Freeze eligibility, request set, CERA schema/model/sampling, validator and materializer; execute B0_KEEP, DETERMINISTIC_SELECTOR and CERA_PLUS_VALIDATOR. Decision-inactive or ineligible rows make zero CERA calls and keep B0.
+7. Every changed answer must be an executed registry entry, validator-approved, hash-reconciled and deterministically materialized. Freeze selected-final before gold.
+8. Run `DecisionSafetyAuditor`, then one dev unblind computing Gate O, selected-final vs B0, CC/CW/WC/WW, changed-WW, commit precision, operation breakdown, calls/tokens/latency, bootstrap intervals and McNemar.
+9. Run `AbstractClaimAuditor` against the submitted abstract and frozen claim ledger.
+10. Only positive dev Gates authorize permanent method freeze, blind internal table-disjoint holdout, holdout prediction close and one holdout unblind.
+
+The controller automatically applies its preauthorized readiness/restart/checkpoint/exact-replay policy. Scientific POSTs have no content retry. Never retry parse, local validation, grounding, closure, execution, projection, provenance, length, answer, validator or Gate failures.
+
+At the first scientific failure, stop permanently; preserve all raw and stratified evidence. Do not return to an earlier stage to change code, prompts, schemas, thresholds, eligibility or request sets.
+
+Only `FREEZE_CERTA_ACTIVE_METHOD_EXPERIMENT_ONLY` unlocks Goal E. Return all reached raw artifacts, four audit reports, selected-final and CC/CW/WC/WW if reached, operation-stratified coverage, costs, terminal, clean Git state, checksums and verified bundle.

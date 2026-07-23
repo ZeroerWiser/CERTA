@@ -1,3 +1,0 @@
-arm_name	source_mode	changed_existing_flag	unchanged_flags	legacy_compatibility_only
-main_cert	full_cert	mode=full_cert	all source defaults	false
-ablation_no_exec	ablation_no_exec	mode=ablation_no_exec	all source defaults	true

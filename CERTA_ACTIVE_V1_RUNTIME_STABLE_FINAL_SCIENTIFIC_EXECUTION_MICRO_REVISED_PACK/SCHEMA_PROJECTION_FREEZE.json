@@ -1,0 +1,18 @@
+{
+  "schema_version": "certa_active_v1_schema_projection_freeze_v1",
+  "method_commit": "a1e8a7c761fc1f51b56d5d029a94901477eafb55",
+  "projection_blob": "23e50e362765b982afe842f4da2cb5a7a12b264c",
+  "runner_blob": "104370fe876828ce099097c19e3f9980ec8ef583",
+  "risk_scanner_blob": "2bbd409a0cced798ca00ad8ff025a55e3b9421e0",
+  "full_local_validator_blob": "de86c3aea30e72e24ebc67678161248fcb0bafd7",
+  "same_builder_for_c0_c1_c2": true,
+  "full_local_validator_authoritative": true,
+  "projection_edits_authorized": false,
+  "offline_evidence": {
+    "tests_passed": 168,
+    "subtests_passed": 105,
+    "historical_valid_payloads": 5,
+    "malformed_categories_rejected": 10,
+    "frozen_schema_identity_pairs": 6
+  }
+}

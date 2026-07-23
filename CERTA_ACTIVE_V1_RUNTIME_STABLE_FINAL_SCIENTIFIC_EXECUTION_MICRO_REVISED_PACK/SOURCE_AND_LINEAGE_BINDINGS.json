@@ -1,0 +1,57 @@
+{
+  "schema_version": "certa_active_v1_runtime_stable_source_binding_v1",
+  "repository": "/home/hsh/ME/Table/EMNLP2026/CERTA",
+  "branch": "research/certa-active-v1",
+  "head": "a1e8a7c761fc1f51b56d5d029a94901477eafb55",
+  "origin_head": "a1e8a7c761fc1f51b56d5d029a94901477eafb55",
+  "origin_master": "819aa30f499f337b77b0b731b4c833a3f50726fa",
+  "python": "/home/hsh/anaconda3/envs/table-cu128/bin/python",
+  "runner": "tools/certa_active_v1_completion.py",
+  "expected_model": "Qwen3-8B",
+  "api_base_url": "http://127.0.0.1:30338/v1",
+  "external_artifacts": [
+    {"path": "/home/hsh/ME/Table/EMNLP2026/certa_frozen_sources/CERTA_ACTIVE_V1_ROLE_V3_FINAL.zip", "sha256": "1c5191fdb8790edfa7d6771fa352803989f9dee50058cecdd017049f19bc68bf", "required": true},
+    {"path": "/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_FROZEN_ROLE_V3_FINAL_METHOD_COMPLETION_PACK", "kind": "validated_directory", "required": true},
+    {"path": "/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_FINAL_METHOD_GOAL_REVISED_PACK", "kind": "validated_directory", "required": true},
+    {"path": "/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_ROLE_V3_FINAL_METHOD_PACK", "kind": "validated_directory", "required": true}
+  ],
+  "git_blobs": {
+    "graph_builder.py": "b8378b2fdd259d6e02d30bf16137756a39390373",
+    "run_cscr_pipeline.py": "8eebb53c9e5020237cf8deeef0d46d71ccaadff3",
+    "certa/active_v1/role_contract_v3.py": "4ed74e36ef80db3fcfba8bf5a6def83cdb3962a8",
+    "certa/active_v1/planner_bridge_v3.py": "bb0ca3ecb8748d960df659b570000ad8a3646168",
+    "certa/active_v1/planner_transport_projection.py": "23e50e362765b982afe842f4da2cb5a7a12b264c",
+    "certa/active_v1/artifact_authority.py": "a419c6b00d75388a6bd33700c5e639d451becffe",
+    "certa/active_v1/decision_adapter.py": "1d75419f77d5c92437414cb51fbb566dd8cef7d1",
+    "certa/active_v1/answer_authority.py": "06074e1db9195e7c3acef8b1a3301fa990ddf6f7",
+    "certa/planner/typed_planner.py": "de86c3aea30e72e24ebc67678161248fcb0bafd7",
+    "certa/planner/schema_view.py": "5ddb65273fb6c28db76d72024bfd7dacbcffaaab",
+    "certa/grounding/plan_closure.py": "d55632a79b9ee29178f0218302ecad3d98a8e31d",
+    "certa/grounding/support_partition.py": "f16fcc63355c8234183e9be0c272113d9021b017",
+    "certa/operations/contracts.py": "b7db1ca59faac1eead908ca1bae704a06b050b9c",
+    "certa/derivations/project.py": "1ecc17924d7a89ca3f7c3d822b389a53d689d7ab",
+    "certa/derivations/answer_equivalence.py": "4dc4103471749c597c1c6ec749a9be7206eb8c7d",
+    "certa/derivations/iade.py": "b8ad08e9f026027ab5a2abd0fc56319154db18b9",
+    "certa/derivations/contrast.py": "8b22e470712194bb50c31aacca07926129765105",
+    "certa/egra/evidence_cards.py": "e61f0118a53b500d4cb134c6ccd264e7f00c0dcd",
+    "certa/egra/retrieval.py": "6b3f010e557163d9afb864743005be4ac11c03f7",
+    "certa/repair/repair_prompt.py": "6bb658379438de0ce1cb53769387be18ac9773f6",
+    "certa/repair/safety_validator.py": "331b9a73f3b70b4fe629492fff9f2914caa3a03a",
+    "certa/repair/causal_epistemic_agent.py": "60991439ede64be33736e0074edd57f56f203b28",
+    "tools/certa_active_v1_completion.py": "104370fe876828ce099097c19e3f9980ec8ef583",
+    "tools/certa_active_v1_schema_risk_scanner.py": "2bbd409a0cced798ca00ad8ff025a55e3b9421e0",
+    "configs/profiles/certa_active_v1.env": "0be26b14da705d3d23b67b9d76badb1d8f649f80"
+  },
+  "service": {
+    "environment": {"CUDA_VISIBLE_DEVICES": "1"},
+    "command": [
+      "/home/hsh/anaconda3/envs/table-cu128/bin/python", "-m", "vllm.entrypoints.openai.api_server",
+      "--model", "/home/common_data/llm/Qwen/Qwen3-8B", "--served-model-name", "Qwen3-8B",
+      "--host", "127.0.0.1", "--port", "30338", "--tensor-parallel-size", "1",
+      "--dtype", "bfloat16", "--enable-prefix-caching", "--max-num-seqs", "32",
+      "--gpu-memory-utilization", "0.90", "--max-model-len", "32768",
+      "--reasoning-parser", "qwen3", "--uvicorn-log-level", "info"
+    ]
+  },
+  "old_server_log_disclosure": "SERVER_LOG_CONTAMINATED_BY_EXTERNAL_CHECKSUM_APPEND=true"
+}

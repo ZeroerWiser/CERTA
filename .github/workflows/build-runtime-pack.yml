@@ -1,0 +1,40 @@
+name: Build CERTA runtime pack
+on:
+  push:
+    branches: ["artifacts/certa-runtime-stable-micro-pack-20260723"]
+permissions:
+  contents: write
+jobs:
+  build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACK=CERTA_ACTIVE_V1_RUNTIME_STABLE_FINAL_SCIENTIFIC_EXECUTION_MICRO_REVISED_PACK
+          chmod +x "$PACK/RUNTIME_CONTROLLER.py" "$PACK/validate_pack.py"
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root=Path('CERTA_ACTIVE_V1_RUNTIME_STABLE_FINAL_SCIENTIFIC_EXECUTION_MICRO_REVISED_PACK')
+          rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file() and p.name!='SHA256SUMS.txt':
+                  rows.append(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(root)}")
+          (root/'SHA256SUMS.txt').write_text('\n'.join(rows)+'\n')
+          PY
+          python3 "$PACK/validate_pack.py" --pack-root "$PACK"
+          rm -f "${PACK}.zip" "${PACK}_ZIP_SHA256.txt"
+          zip -qr "${PACK}.zip" "$PACK"
+          sha256sum "${PACK}.zip" > "${PACK}_ZIP_SHA256.txt"
+      - name: Commit generated pack
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add CERTA_ACTIVE_V1_RUNTIME_STABLE_FINAL_SCIENTIFIC_EXECUTION_MICRO_REVISED_PACK CERTA_ACTIVE_V1_RUNTIME_STABLE_FINAL_SCIENTIFIC_EXECUTION_MICRO_REVISED_PACK.zip CERTA_ACTIVE_V1_RUNTIME_STABLE_FINAL_SCIENTIFIC_EXECUTION_MICRO_REVISED_PACK_ZIP_SHA256.txt
+          git commit -m "build: finalize runtime execution pack [skip ci]"
+          git push origin HEAD:${GITHUB_REF_NAME}
