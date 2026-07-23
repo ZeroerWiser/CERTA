@@ -1,0 +1,35 @@
+{
+  "schema_version": "certa_active_v1_coverage_preserving_retrieval_bindings_v1",
+  "repository": "ZeroerWiser/CERTA",
+  "base_branch": "research/certa-active-v1-grounding-authority-final",
+  "base_commit": "a6818af3c157f3416bdff84925e003e36b3c4583",
+  "target_branch": "research/certa-active-v1-coverage-preserving-retrieval-final",
+  "source_git_blobs": {
+    "certa/active_v1/planner_bridge_v3.py": "bb0ca3ecb8748d960df659b570000ad8a3646168",
+    "certa/planner/typed_planner.py": "de86c3aea30e72e24ebc67678161248fcb0bafd7",
+    "certa/egra/retrieval.py": "6b3f010e557163d9afb864743005be4ac11c03f7",
+    "certa/planner/schema_view.py": "5ddb65273fb6c28db76d72024bfd7dacbcffaaab",
+    "certa/active_v1/artifact_authority.py": "f3bcf88def9405a48166fc9b668f03b261f8e49e",
+    "tools/compute_certa_active_constructor_gate_v3.py": "5895fa5e282e069fa96f9033da5928bd381c671c",
+    "tools/certa_active_v1_completion.py": "3978f357eee9177274b5caf0a9062fd4aa6b4681"
+  },
+  "prior_gate_recovery": {
+    "root": "/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY",
+    "gate_path": "constructor/CONSTRUCTOR_GATE_C_V3.json",
+    "gate_sha256": "21b5cf7a07e7f157f4f2c45305f5be85682e12857ea2f9267d79e843845a1c67",
+    "recovery_record_sha256": "18e6d5822f786ee451d0310b15de6e9ebc09406b214d8aa171896859cc2c3f21",
+    "terminal_sha256": "61a78c104d690659bebe315e6d11fa3d5f138150a67728ce6dd0df1345c8668f",
+    "manifest_sha256": "9dd76830d1092a88530ada6b3a511e7110da915e7e159305fcdf220865aca872",
+    "bundle_sha256": "07330df8d5d86087cfd4cbf6aeb01acc249e804dd78688ac7ea3e6c4bbb5e497",
+    "terminal_state": "FREEZE_CERTA_ACTIVE_GROUNDING_AUTHORITY_VALID_NO_PAIRED_CONTRAST"
+  },
+  "prior_gate_summary": {
+    "C0": {"authorized_rows": 3, "executable_rows": 2, "derivations": 2, "paired_rows": 0},
+    "C1": {"authorized_rows": 6, "executable_rows": 4, "derivations": 29, "paired_rows": 1},
+    "C2": {"authorized_rows": 8, "executable_rows": 6, "derivations": 6, "paired_rows": 0},
+    "safety_counter_total": 0,
+    "paired_gain": -1,
+    "registry_gain": -1,
+    "role_compatible_precision": 1.0
+  }
+}
