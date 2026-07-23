@@ -51,7 +51,7 @@ jobs:
             const validation = fs.readFileSync('VALIDATION.log', 'utf8');
             const exitCode = fs.readFileSync('VALIDATION.exit', 'utf8').trim();
             const zipSha = fs.readFileSync('CERTA_ACTIVE_V1_PREWARMED_SERVICE_ADOPTION_CONTROLLER_PACK_ZIP_SHA256.txt', 'utf8').trim();
-            const body = `<!-- CERTA_ADOPTION_PACK_VALIDATION -->\nValidation exit: ${exitCode}\n\n\`\`\`text\n${validation}\n\`\`\`\n\n${zipSha}`;
+            const body = `<!-- CERTA_ADOPTION_PACK_VALIDATION -->\nWorkflow run: ${context.runId}\nHead SHA: ${context.sha}\nValidation exit: ${exitCode}\n\n\`\`\`text\n${validation}\n\`\`\`\n\n${zipSha}`;
             await github.rest.issues.createComment({owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body});
       - name: Upload build diagnostics and pack
         if: always()
