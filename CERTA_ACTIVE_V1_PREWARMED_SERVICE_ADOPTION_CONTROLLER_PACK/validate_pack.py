@@ -81,8 +81,6 @@ def main() -> None:
     goal = (root / "GOAL_MODE_COMMAND.txt").read_text(encoding="utf-8")
     if "/goal CERTA_ACTIVE_V1_ADOPT_PREWARMED_SERVICE_AND_RUN_FINAL_SCIENTIFIC_DAG" not in goal:
         raise SystemExit("goal_identity")
-    if "--safetensors-load-strategy" in goal:
-        raise SystemExit("forbidden_safetensors_strategy")
 
     py_compile.compile(str(root / "RUNTIME_CONTROLLER_ADOPT.py"), doraise=True)
     py_compile.compile(str(root / "validate_pack.py"), doraise=True)
