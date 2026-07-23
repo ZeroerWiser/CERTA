@@ -1,0 +1,1 @@
+只修复预热服务身份工件的混合lineage与缺失log字段，不改变科学合同。新脚本从仍运行的PID 1349993只读冻结完整V2身份、日志FD/inode、端口归属和readiness证据；新controller只验证该V2工件并推进原冻结DAG。不会启动、停止、重启或signal服务，不修改CERTA源码、Role V3、Planner、transport projection、Gate、threshold或Decision。
