@@ -1,0 +1,1 @@
+This artifact-only branch exists solely to validate and package the zero-call Gate C V3 recovery Pack. It must not be merged into the method branch.
