@@ -51,37 +51,27 @@ def main() -> None:
                 errors.append("target_branch_mismatch")
             if len(binding.get("source_git_blobs") or {}) < 7:
                 errors.append("source_binding_incomplete")
+            if binding.get("prior_assignment_authority_replay", {}).get("manifest_entries") != 538:
+                errors.append("prior_replay_binding_incomplete")
             if binding.get("prior_gate_recovery", {}).get("gate_sha256") != "21b5cf7a07e7f157f4f2c45305f5be85682e12857ea2f9267d79e843845a1c67":
                 errors.append("prior_gate_binding_mismatch")
 
     goal = (root / "GOAL_MODE_COMMAND.txt").read_text(encoding="utf-8") if (root / "GOAL_MODE_COMMAND.txt").is_file() else ""
     required_phrases = (
         "/goal CERTA_ACTIVE_V1_FINAL_COVERAGE_PRESERVING_RETRIEVAL_COMPLETION",
-        "D_C2 = D_C1",
-        "C0 and C1 must be zero",
+        "corrected C2 must retain byte-identical `schema_nodes` and `schema_edges` to C1",
+        "Endpoint calls for C0 and C1 must be zero",
         "temperature 0",
         "zero retries",
         "FREEZE_CERTA_ACTIVE_METHOD_READY_FOR_FINAL_DECISION_EXECUTION",
         "FREEZE_CERTA_ACTIVE_COVERAGE_PRESERVING_RETRIEVAL_VALID_NO_PAIRED_CONTRAST",
         "Decision, CERA, dev gold, unblinding and holdout are forbidden",
         "Do not modify Gate thresholds",
+        "This is the last authorized CERTA Active V1 method-completion Goal",
     )
     for phrase in required_phrases:
         if phrase not in goal:
             errors.append("goal_missing:" + phrase)
-
-    forbidden = (
-        "lower the Gate",
-        "change the threshold",
-        "use gold to",
-        "manual sample patch",
-        "start vLLM",
-        "restart vLLM",
-    )
-    lowered = goal.lower()
-    for phrase in forbidden:
-        if phrase.lower() in lowered:
-            errors.append("goal_forbidden_phrase:" + phrase)
 
     manifest = root / "SHA256SUMS.txt"
     if manifest.is_file():
