@@ -1,0 +1,53 @@
+{
+  "schema_version": "certa_active_v1_gate_c_v3_recovery_binding_v1",
+  "repository": "/home/hsh/ME/Table/EMNLP2026/CERTA",
+  "branch": "research/certa-active-v1-grounding-authority-final",
+  "commit": "a6818af3c157f3416bdff84925e003e36b3c4583",
+  "origin_branch": "research/certa-active-v1-grounding-authority-final",
+  "frozen_parent": "a1e8a7c761fc1f51b56d5d029a94901477eafb55",
+  "source_git_blobs": {
+    "certa/active_v1/artifact_authority.py": "f3bcf88def9405a48166fc9b668f03b261f8e49e",
+    "schemas/active_v1/RAW_GROUNDING_RECORD_V3.schema.json": "0d3ca52f736523e77bae9f9eb72686d3e3f593a7",
+    "tests/active_v1/fixtures/grounding_authority/real_table_shapes.json": "f51204beea4214a84ee30c4f28cd42b361e7881d",
+    "tests/active_v1/test_assignment_level_grounding_authority.py": "b5db01fe549c23f953d558988b27d6199d35dd94",
+    "tests/active_v1/test_constructor_gate_v3.py": "61b4127016c7958535ca01a073d5872712ba142d",
+    "tools/certa_active_v1_completion.py": "3978f357eee9177274b5caf0a9062fd4aa6b4681",
+    "tools/compute_certa_active_constructor_gate_v3.py": "5895fa5e282e069fa96f9033da5928bd381c671c"
+  },
+  "failed_replay_root": "/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_REPLAY",
+  "failed_terminal": "FREEZE_CERTA_ACTIVE_GROUNDING_AUTHORITY_REPLAY_FAILED",
+  "failed_terminal_sha256": "dadb2d80c3aad30bd4382df6a7e417dbdfd5feb907d3740eef9bebb9b51d8ac1",
+  "failure_record_sha256": "37d2e7ebc80daca8ad2071bb94950620321a640d53d6c91dd2b253ee5cf8ce98",
+  "failed_manifest_sha256": "419766026150f9d2e3b826aa67f6e784e32f9a6da1addcd56454c2589487cd0e",
+  "failed_manifest_entries": 538,
+  "failed_bundle_sha256": "d05580c1dd8694ca03fb8183645be193d4107a23a9edf78926db5ade91b316df",
+  "recovery_root": "/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY",
+  "required_replay_inputs": [
+    "constructor/DEV64_IDENTITIES.blind.jsonl",
+    "constructor/DEV64_ROLE_V3_RECORDS.blind.jsonl",
+    "constructor/RAW_GROUNDINGS_V3.jsonl",
+    "constructor/RAW_DERIVATIONS.jsonl",
+    "constructor/FROZEN_REGISTRY.jsonl",
+    "constructor/CONSTRUCTOR_COST_LEDGER.json",
+    "logs/OFFLINE_REPLAY_ACCESS_LEDGER.json",
+    "lineage/REPLAY_27_RECONCILIATION.json",
+    "replay/STATE_REBUILD_VALIDATION.jsonl",
+    "freeze/IMPLEMENTATION_SOURCE_FREEZE.json"
+  ],
+  "gate_thresholds": {
+    "c2_paired_min": 8,
+    "paired_gain_min": 4,
+    "c2_registry_complete_paired_min": 6,
+    "registry_gain_min": 3,
+    "paired_tables_min": 4,
+    "role_compatible_precision": 1.0
+  },
+  "forbidden_accesses": [
+    "endpoint_calls",
+    "gold_accesses",
+    "sealed_label_accesses",
+    "decision_calls",
+    "cera_calls",
+    "holdout_calls"
+  ]
+}
