@@ -53,3 +53,5 @@ ps -o pid,ppid,lstart,cmd for PID 1349993 and its children
 ```
 
 The original blocked terminal remains immutable. Any reexecution uses a new output root.
+
+Build marker: diagnostic-v1-final.
