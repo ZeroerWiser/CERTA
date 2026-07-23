@@ -1,0 +1,85 @@
+/goal CERTA_ACTIVE_V1_GATE_C_V3_ZERO_CALL_RECOVERY_AND_DECISION_UNLOCK
+
+Use the immutable Pack at:
+`/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY_AND_DECISION_UNLOCK_PACK`
+
+This is a new Goal on the pushed method branch `research/certa-active-v1-grounding-authority-final@a6818af3c157f3416bdff84925e003e36b3c4583`. Preserve the finalized failed replay root permanently. Do not continue its terminal and do not rerun Role, Planner, grounding, closure, execution, registry construction, or model requests.
+
+The previous terminal is superseded only for the Gate entrypoint import failure. The V3 method implementation and all replay artifacts remain frozen. Repository edits, commits, threshold changes, cohort changes, new heuristics, Decision, gold access, sealed-label access, CERA, and holdout are forbidden in this Goal.
+
+Bind:
+
+```bash
+export CERTA_ACTIVE_PYTHON=/home/hsh/anaconda3/envs/table-cu128/bin/python
+export CERTA_REPO=/home/hsh/ME/Table/EMNLP2026/CERTA
+export CERTA_GATE_PACK=/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY_AND_DECISION_UNLOCK_PACK
+export CERTA_FAILED_REPLAY=/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_REPLAY
+export CERTA_GATE_RECOVERY=/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_GATE_C_V3_RECOVERY
+```
+
+Validate:
+
+```bash
+cd "$CERTA_GATE_PACK"
+sha256sum -c SHA256SUMS.txt
+"$CERTA_ACTIVE_PYTHON" validate_pack.py --pack-root "$CERTA_GATE_PACK"
+test ! -e "$CERTA_GATE_RECOVERY"
+cd "$CERTA_REPO"
+git fetch --prune origin
+test "$(git branch --show-current)" = "research/certa-active-v1-grounding-authority-final"
+test "$(git rev-parse HEAD)" = "a6818af3c157f3416bdff84925e003e36b3c4583"
+test "$(git rev-parse origin/research/certa-active-v1-grounding-authority-final)" = "a6818af3c157f3416bdff84925e003e36b3c4583"
+test -z "$(git status --porcelain)"
+```
+
+Do not execute `tools/compute_certa_active_constructor_gate_v3.py` directly. Compute the Gate exactly once through the Pack's import-safe recovery tool:
+
+```bash
+"$CERTA_ACTIVE_PYTHON" "$CERTA_GATE_PACK/GATE_C_V3_RECOVERY.py" compute \
+  --repo "$CERTA_REPO" \
+  --replay-root "$CERTA_FAILED_REPLAY" \
+  --recovery-root "$CERTA_GATE_RECOVERY"
+```
+
+The tool must verify the failed replay's 538-entry manifest, terminal/failure/bundle hashes, all selected input hashes, the seven source Git blobs, the zero-access ledger, and the unchanged Gate thresholds before computing. It must inject the repository root before importing the Gate module. No endpoint or gold-bearing resource may be accessed.
+
+After `constructor/CONSTRUCTOR_GATE_C_V3.json` exists, run the three read-only sub-agents in `SUBAGENT_PROTOCOL.md`. They may write only:
+
+```text
+reviews/GATE_ENTRYPOINT_ROOT_CAUSE_AUDIT.md
+reviews/GATE_C_V3_ARTIFACT_AUDIT.md
+reviews/GATE_C_V3_HOSTILE_AAAI_AUDIT.md
+```
+
+The main agent must independently inspect the Gate and report:
+
+- all safety counters;
+- C0/C1/C2 authorized, executable, paired, and registry-complete paired rows;
+- C2 paired-table coverage;
+- C2 role-compatible precision;
+- paired and registry gains;
+- exact failure reasons;
+- whether the 27 prior mismatches remain fully reconciled;
+- zero endpoint/gold/sealed-label/Decision access.
+
+Do not tune or reinterpret the Gate. Finalize through:
+
+```bash
+"$CERTA_ACTIVE_PYTHON" "$CERTA_GATE_PACK/GATE_C_V3_RECOVERY.py" finalize \
+  --repo "$CERTA_REPO" \
+  --recovery-root "$CERTA_GATE_RECOVERY"
+```
+
+The terminal is mechanically determined:
+
+```text
+Gate PASS
+→ FREEZE_CERTA_ACTIVE_METHOD_READY_FOR_FINAL_DECISION_EXECUTION
+
+Gate valid failure
+→ FREEZE_CERTA_ACTIVE_GROUNDING_AUTHORITY_VALID_NO_PAIRED_CONTRAST
+```
+
+If Gate fails, stop permanently without method edits or another replay. If Gate passes, do not run Decision in this Goal; return the exact Gate hash and positive unlock terminal so the Research Director can issue the execution-only Decision/holdout Pack bound to that evidence.
+
+Return the recovered Gate, recovery record, three audit reports, terminal files, checksums, verified Git bundle, exact branch/commit, clean Git status, and a concise mechanism-level interpretation. Do not spend a turn restating governance before executing.
