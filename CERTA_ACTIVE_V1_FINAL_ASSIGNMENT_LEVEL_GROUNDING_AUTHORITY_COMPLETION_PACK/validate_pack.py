@@ -21,12 +21,13 @@ def main():
     b=json.loads((root/"SOURCE_AND_OUTPUT_BINDINGS.json").read_text())
     if b["start_commit"]!="a1e8a7c761fc1f51b56d5d029a94901477eafb55": raise SystemExit("start_commit")
     goal=(root/"GOAL_MODE_COMMAND.txt").read_text()
-    required=("assignment-level","zero-endpoint","27 prior","FREEZE_CERTA_ACTIVE_METHOD_READY_FOR_FINAL_DECISION_EXECUTION")
-    for token in required:
+    for token in ("assignment-level","zero-endpoint","27 prior","FREEZE_CERTA_ACTIVE_METHOD_READY_FOR_FINAL_DECISION_EXECUTION"):
         if token not in goal: raise SystemExit("goal_missing:"+token)
-    forbidden=("modify Role V3","relax Gate C thresholds","first-match selection is allowed")
-    for token in forbidden:
-        if token in goal: raise SystemExit("forbidden:"+token)
+    boundary=(root/"IMPLEMENTATION_BOUNDARY.md").read_text()
+    for token in ("certa/active_v1/artifact_authority.py","tools/compute_certa_active_constructor_gate_v3.py","certa/grounding/plan_closure.py","No first-match selection"):
+        if token not in boundary: raise SystemExit("boundary_missing:"+token)
+    if "Gate thresholds — unchanged" not in (root/"OFFLINE_REPLAY_AND_GATE_PROTOCOL.md").read_text():
+        raise SystemExit("gate_threshold_freeze_missing")
     py_compile.compile(str(root/"validate_pack.py"),doraise=True)
     print("PASS CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_COMPLETION_PACK")
 if __name__=="__main__": main()
