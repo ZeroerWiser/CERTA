@@ -1,0 +1,1 @@
+只修改外部controller，不改变科学方法。新增`bootstrap-adopt-existing-service`，读取并核验预热服务身份，重新执行三轮readiness，写入controller state后运行冻结preflight和科学DAG。Codex不再启动、停止、重启、signal或重配vLLM，也不加入`--safetensors-load-strategy eager`。终态、required-artifact disposition、report、Git bundle与checksum改为同文件系统staging后原子发布。所有旧blocked terminals和logs永久保留。
