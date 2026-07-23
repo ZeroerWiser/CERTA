@@ -1,0 +1,35 @@
+{
+  "schema_version": "certa_active_v1_set_valued_authority_gate_q_v1",
+  "old_method_sha": "a1e8a7c761fc1f51b56d5d029a94901477eafb55",
+  "old_terminal": "FREEZE_CERTA_ACTIVE_CONSTRUCTOR_FAILED",
+  "gold_access_allowed": false,
+  "endpoint_calls_before_gate_q": 0,
+  "gate_a": {
+    "identities_required": 192,
+    "valid_candidates_must_be_resolver_unique": true,
+    "authorized_set_equals_valid_candidate_set": true,
+    "invalid_candidate_authorized_max": 0,
+    "singleton_selected_binding_drift_max": 0,
+    "raw_derivation_hash_drift_max": 0,
+    "program_answer_side_provenance_drift_max": 0,
+    "unexplained_reconciliation_mismatch_max": 0,
+    "gold_or_answer_correctness_reads_max": 0
+  },
+  "gate_q": {
+    "calculator": "original Gate C thresholds, versioned only for set-membership reconciliation",
+    "all_original_thresholds_unchanged": true,
+    "constructor_gate_c_pass_required": true,
+    "safety_counters_all_zero": true,
+    "paired_executable_rows_min": 8,
+    "paired_gain_over_max_c0_c1_min": 4,
+    "registry_complete_paired_rows_min": 6,
+    "registry_gain_min": 3,
+    "paired_table_count_min": 4,
+    "executable_precision": 1.0
+  },
+  "failure_terminals": {
+    "gate_a": "FREEZE_CERTA_ACTIVE_SET_VALUED_AUTHORITY_INVALID",
+    "gate_q": "FREEZE_CERTA_ACTIVE_SET_VALUED_AUTHORITY_INSUFFICIENT",
+    "live_gate_c": "FREEZE_CERTA_ACTIVE_CONSTRUCTOR_FAILED"
+  }
+}
