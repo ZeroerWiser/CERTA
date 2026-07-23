@@ -1,0 +1,19 @@
+{
+  "schema_version": "certa_active_v1_final_grounding_authority_binding_v1",
+  "repository": "/home/hsh/ME/Table/EMNLP2026/CERTA",
+  "start_branch": "research/certa-active-v1",
+  "start_commit": "a1e8a7c761fc1f51b56d5d029a94901477eafb55",
+  "target_branch": "research/certa-active-v1-grounding-authority-final",
+  "source_output_root": "/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2R2_CONTROLLER_RECOVERY_FINAL_SCIENTIFIC_DAG",
+  "source_terminal": "FREEZE_CERTA_ACTIVE_CONSTRUCTOR_FAILED",
+  "source_integration_gate_sha256": "eb30e723d9a033f35c7af3a9ac860a10c53bd5cf4eaaaf65436ce0dde9c4624f",
+  "source_constructor_gate_sha256": "8dc3d21878093520477b26316239bfe726eb35dcc284d5cda1fd93911de771c2",
+  "source_integration_taxonomy_sha256": "542e69d1b9b20beccc0cef95cd8fa9a27f6c4f0a67550823f8f8f4805a7de773",
+  "source_constructor_audit_sha256": "dd1a86dbcdfb381a5189b91278e95967fffbfd627e49c93c8d615bc765d2143c",
+  "source_manifest_sha256": "420e83d5377b9d5a41c0165c9431e716d9504c8cdd2a0dbd91ba88fde7341cdf",
+  "source_manifest_entries": 1166,
+  "scientific_calls_before_terminal": 257,
+  "gold_or_sealed_access": 0,
+  "replay_endpoint_calls_authorized": 0,
+  "new_output_root": "/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_REPLAY"
+}

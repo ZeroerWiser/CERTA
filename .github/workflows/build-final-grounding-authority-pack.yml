@@ -1,0 +1,52 @@
+name: Build final grounding authority pack
+on:
+  pull_request:
+    branches: ["research/certa-active-v1"]
+    paths:
+      - "CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_COMPLETION_PACK/**"
+      - ".github/workflows/build-final-grounding-authority-pack.yml"
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACK=CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_COMPLETION_PACK
+          chmod +x "$PACK/validate_pack.py"
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root=Path('CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_COMPLETION_PACK')
+          rows=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file() and p.name!='SHA256SUMS.txt':
+                  rows.append(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(root)}")
+          (root/'SHA256SUMS.txt').write_text('\n'.join(rows)+'\n')
+          PY
+          python3 "$PACK/validate_pack.py" --pack-root "$PACK" | tee VALIDATION.log
+          zip -qr "${PACK}.zip" "$PACK"
+          sha256sum "${PACK}.zip" > "${PACK}_ZIP_SHA256.txt"
+      - name: Publish validation
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs=require('fs');
+            const validation=fs.readFileSync('VALIDATION.log','utf8');
+            const zipSha=fs.readFileSync('CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_COMPLETION_PACK_ZIP_SHA256.txt','utf8').trim();
+            await github.rest.issues.createComment({owner:context.repo.owner,repo:context.repo.repo,issue_number:context.issue.number,body:`<!-- CERTA_FINAL_GROUNDING_AUTHORITY_PACK -->\nWorkflow run: ${context.runId}\nHead SHA: ${context.sha}\n\n\`\`\`text\n${validation}\n\`\`\`\n\n${zipSha}`});
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_COMPLETION_PACK
+          path: |
+            CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_COMPLETION_PACK.zip
+            CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_COMPLETION_PACK_ZIP_SHA256.txt
+            VALIDATION.log
+          if-no-files-found: error
+          retention-days: 30

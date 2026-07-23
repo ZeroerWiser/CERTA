@@ -1,0 +1,57 @@
+/goal CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_COMPLETION
+
+Use the immutable Pack at:
+`/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_COMPLETION_PACK`
+
+This is the final bounded method-completion Goal before Decision and full experiments. Start from clean `research/certa-active-v1@a1e8a7c761fc1f51b56d5d029a94901477eafb55`, create `research/certa-active-v1-grounding-authority-final`, and preserve the complete prior V2R2 output and terminal.
+
+Read Pack contracts and mechanically verify `SOURCE_AND_OUTPUT_BINDINGS.json`. Do not spend a Goal turn restating governance. Use four read-only sub-agents from `SUBAGENT_PROTOCOL.md`; the main agent alone edits, commits, replays and freezes.
+
+Scientific diagnosis: current closure correctly enumerates complete role-domain assignments and fails closed when one assignment is structurally ambiguous. The artifact serializer incorrectly requires exactly one valid binding across the entire plan before writing `selected_binding_id`. Multiple distinct assignments that each resolve exactly are finite executable hypotheses, not ambiguity. Correct only this assignment-level authority mismatch.
+
+Implement the contract in `GROUNDING_AUTHORITY_CONTRACT.md` within the paths and line limits of `IMPLEMENTATION_BOUNDARY.md`:
+
+- introduce raw grounding record V3 with explicit `grounding_hypotheses` and sorted `authorized_binding_ids`;
+- authorize every assignment that independently resolves exactly;
+- retain intra-assignment ambiguous/unresolved assignments as rejected;
+- bind every raw derivation to exactly one authorized assignment-level `binding_id`;
+- retain `first_match_used=false` and remove plan-level `selected_binding_id` as a reconciliation requirement;
+- create a repo-native Constructor Gate V3 that reconciles registry → raw derivation → authorized binding;
+- preserve all existing Gate C thresholds and safety requirements;
+- update the frozen runner only to use the V3 schema, serializer evidence and repo-native Gate V3.
+
+Do not modify Role V3, retrieval, Planner, transport projection, structural resolvers, closure enumeration, operation contracts, executor, answer equivalence, behavior contrast, Decision, cohorts, request sets or thresholds. Do not add a model call, scorer, reranker, fuzzy matcher, first-match rule or answer-based tie-break.
+
+Before implementation, the four sub-agents must write concise audit reports under a new output root. The RealTableBindingFailureAnalyst must reconstruct lineage for samples `24fad1e0d3751475d5673e86e2c3a6ea` and `84eab744af0915c0e4deb855efe0321d` and account for all 27 prior grounding-authority mismatches.
+
+Add focused tests covering:
+
+1. one assignment resolving to multiple cells remains AMBIGUOUS and cannot enter registry;
+2. two different assignments each resolving uniquely produce two authorized binding IDs;
+3. derivation-to-binding reconciliation is exact;
+4. no plan-level singleton is required;
+5. first-match and order dependence are impossible;
+6. canonical serialization is permutation invariant;
+7. duplicate canonical programs remain deduplicated;
+8. registry-external and provenance-empty records fail closed;
+9. Gate thresholds are byte-for-byte unchanged;
+10. the two real-table failure shapes replay without unexplained mismatch.
+
+Run the complete offline test suite. Require all existing tests plus new tests to pass. Verify production and test line limits and confirm every explicitly frozen source blob is unchanged.
+
+Create one normal commit before scientific replay and push the new branch. After the commit, source is immutable.
+
+Run the zero-endpoint, zero-gold dev64 replay defined in `OFFLINE_REPLAY_AND_GATE_PROTOCOL.md` under the new output root:
+`/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_REPLAY`
+
+Reuse only checksum-valid frozen runtime, B0, Role, Planner request/response, full-local validation and `constructor/STATE` artifacts from the prior V2R2 output. Rebuild each graph and closure deterministically and require every closure SHA to match the prior state. Do not call `/v1/chat/completions`, do not read dev gold or sealed labels, and do not regenerate Planner or Role outputs.
+
+Compute Gate C V3 from replayed raw artifacts. Mechanically account for all 27 prior mismatches. Report by sample, arm, signature, operation family, table and failure stage; separate intra-assignment ambiguity from inter-assignment multiplicity. Synthetic fixtures must remain separate from real-table evidence.
+
+If safety fails, closure drifts, any mismatch is unexplained, an ambiguous assignment is authorized, a threshold changes or registry precision is below 1.0, freeze `FREEZE_CERTA_ACTIVE_GROUNDING_AUTHORITY_REPLAY_FAILED` and stop.
+
+If the correction is safe but paired executable contrast still fails unchanged Gate C, freeze `FREEZE_CERTA_ACTIVE_GROUNDING_AUTHORITY_VALID_NO_PAIRED_CONTRAST` and stop. Do not invent another component.
+
+Only unchanged Gate C PASS authorizes `FREEZE_CERTA_ACTIVE_METHOD_READY_FOR_FINAL_DECISION_EXECUTION`. Produce a method freeze manifest, complete replay archive, four audit reports, per-sample lineage records, Gate C V3, source diff/LOC report, test logs, checksums, clean Git status and verified Git bundle.
+
+Do not run Decision, CERA, dev unblind, sealed labels, holdout or full model experiments in this Goal. Return the exact commit SHA and terminal. The positive terminal unlocks one later execution-only Goal for actual selected-final Decision and the experiment matrix.
