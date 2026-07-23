@@ -15,6 +15,8 @@ export CERTA_ADOPTION_PACK=/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_A
 export CERTA_PREWARMED_ARCHIVE=/home/hsh/ME/Table/EMNLP2026/certa_runtime_evidence/QWEN3_8B_PREWARMED_SERVICE_20260723.tar.gz
 export CERTA_PREWARMED_IDENTITY=/home/hsh/ME/Table/EMNLP2026/certa_runtime_evidence/QWEN3_8B_PREWARMED_SERVICE_20260723/PREWARMED_VLLM_SERVICE_IDENTITY.json
 export CERTA_M3_OUTPUT_ROOT=/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_PREWARMED_ADOPTION_FINAL_SCIENTIFIC_DAG
+export NO_PROXY=127.0.0.1,localhost
+export no_proxy=127.0.0.1,localhost
 
 cd "$CERTA_ADOPTION_PACK"
 sha256sum -c SHA256SUMS.txt
