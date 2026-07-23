@@ -1,0 +1,56 @@
+{
+  "schema_version": "certa_active_v1_prewarmed_identity_v2_recovery_binding_v1",
+  "repository": "/home/hsh/ME/Table/EMNLP2026/CERTA",
+  "branch": "research/certa-active-v1",
+  "head": "a1e8a7c761fc1f51b56d5d029a94901477eafb55",
+  "origin_head": "a1e8a7c761fc1f51b56d5d029a94901477eafb55",
+  "origin_master": "819aa30f499f337b77b0b731b4c833a3f50726fa",
+  "python": "/home/hsh/anaconda3/envs/table-cu128/bin/python",
+  "frozen_runner": "tools/certa_active_v1_completion.py",
+  "current_service": {
+    "pid": 1349993,
+    "cuda_visible_devices": "3",
+    "host": "127.0.0.1",
+    "port": 30338,
+    "endpoint": "http://127.0.0.1:30338",
+    "api_base_url": "http://127.0.0.1:30338/v1",
+    "served_model_name": "Qwen3-8B",
+    "model_root": "/home/common_data/llm/Qwen/Qwen3-8B",
+    "max_model_len": 32768,
+    "diagnostic_normalized_cmdline_sha256": "df765d9af5cc5aafc518428dd4a545ebee34bfd67a512e9d3f9d8d21ec337977"
+  },
+  "superseded_identity": {
+    "archive_path": "/home/hsh/ME/Table/EMNLP2026/certa_runtime_evidence/QWEN3_8B_PREWARMED_SERVICE_20260723.tar.gz",
+    "archive_sha256": "694fcfb57bf7215cbd21b55a6860de5e86582c1312de311ab78a8502a6308a64",
+    "expected_cmdline_sha256": "d86efb9407136fc0127fd63e1387632b70f29c0bd5cdf971884fb345413ac3c4",
+    "blocked_failure_sha256": "56dbe5495c9a5d95deb1354347ed210ca65bb489ed0975e4a418e81523a932f0",
+    "disposition": "READ_ONLY_MIXED_LINEAGE_EVIDENCE"
+  },
+  "diagnostic_result": {
+    "path": "/home/hsh/ME/Table/EMNLP2026/certa_runtime_evidence/PREWARMED_IDENTITY_DIAGNOSTIC_20260723/PREWARMED_IDENTITY_DIAGNOSTIC.json",
+    "required_first_failure": "cmdline_sha256",
+    "required_root_pid_owns_port": true,
+    "required_root_or_descendant_owns_port": true,
+    "required_missing_log_identity": true
+  },
+  "v2_evidence": {
+    "directory": "/home/hsh/ME/Table/EMNLP2026/certa_runtime_evidence/QWEN3_8B_PREWARMED_SERVICE_V2_20260723",
+    "archive": "/home/hsh/ME/Table/EMNLP2026/certa_runtime_evidence/QWEN3_8B_PREWARMED_SERVICE_V2_20260723.tar.gz",
+    "binding_manifest": "/home/hsh/ME/Table/EMNLP2026/certa_runtime_evidence/QWEN3_8B_PREWARMED_SERVICE_V2_20260723_BINDING.json"
+  },
+  "new_output_root": "/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2_FINAL_SCIENTIFIC_DAG",
+  "frozen_method_blobs": {
+    "run_cscr_pipeline.py": "8eebb53c9e5020237cf8deeef0d46d71ccaadff3",
+    "certa/active_v1/role_contract_v3.py": "4ed74e36ef80db3fcfba8bf5a6def83cdb3962a8",
+    "certa/active_v1/planner_bridge_v3.py": "bb0ca3ecb8748d960df659b570000ad8a3646168",
+    "certa/active_v1/planner_transport_projection.py": "23e50e362765b982afe842f4da2cb5a7a12b264c",
+    "certa/active_v1/artifact_authority.py": "a419c6b00d75388a6bd33700c5e639d451becffe",
+    "certa/active_v1/decision_adapter.py": "1d75419f77d5c92437414cb51fbb566dd8cef7d1",
+    "certa/planner/typed_planner.py": "de86c3aea30e72e24ebc67678161248fcb0bafd7",
+    "certa/grounding/plan_closure.py": "d55632a79b9ee29178f0218302ecad3d98a8e31d",
+    "certa/operations/contracts.py": "b7db1ca59faac1eead908ca1bae704a06b050b9c",
+    "certa/egra/retrieval.py": "6b3f010e557163d9afb864743005be4ac11c03f7",
+    "certa/repair/safety_validator.py": "331b9a73f3b70b4fe629492fff9f2914caa3a03a",
+    "tools/certa_active_v1_completion.py": "104370fe876828ce099097c19e3f9980ec8ef583"
+  }
+}
