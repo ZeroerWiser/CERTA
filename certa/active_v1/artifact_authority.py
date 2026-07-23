@@ -33,6 +33,7 @@ class ArtifactContext:
     arm: str
     role_id: str
     fixture_only: bool = False
+    role_record_sha256: str = ""
 
     def __post_init__(self) -> None:
         for field in ("sample_id", "table_id", "role_id"):
@@ -68,6 +69,47 @@ def _binding_id(context: ArtifactContext, assignment: GroundedAssignment) -> str
         "plan_id": assignment.plan_id,
         "assignment_id": assignment.assignment_id,
         "assignment_key": assignment.assignment_key,
+    }
+    return f"B-{canonical_json_hash(identity, 24)}"
+
+
+def _valid_sha256(value: Any) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(char in "0123456789abcdef" for char in text)
+
+
+def _binding_id_v3(
+    context: ArtifactContext,
+    assignment: GroundedAssignment,
+    role_bindings_sha256: str,
+) -> str:
+    identity = {
+        "sample_id": context.sample_id,
+        "table_id": context.table_id,
+        "arm": context.arm,
+        "role_record_sha256": context.role_record_sha256,
+        "plan_id": assignment.plan_id,
+        "assignment_id": assignment.assignment_id,
+        "assignment_key": assignment.assignment_key,
+        "role_bindings_sha256": role_bindings_sha256,
+    }
+    return f"B-{canonical_json_hash(identity, 24)}"
+
+
+def recompute_binding_id_v3(
+    grounding_record: Mapping[str, Any],
+    hypothesis: Mapping[str, Any],
+) -> str:
+    """Recompute a V3 binding from the complete public identity preimage."""
+    identity = {
+        "sample_id": grounding_record.get("sample_id"),
+        "table_id": grounding_record.get("table_id"),
+        "arm": grounding_record.get("arm"),
+        "role_record_sha256": grounding_record.get("role_record_sha256"),
+        "plan_id": grounding_record.get("plan_id"),
+        "assignment_id": hypothesis.get("assignment_id"),
+        "assignment_key": hypothesis.get("assignment_key"),
+        "role_bindings_sha256": hypothesis.get("role_bindings_sha256"),
     }
     return f"B-{canonical_json_hash(identity, 24)}"
 
@@ -192,6 +234,198 @@ def _grounding_records(
             "first_match_used": False,
         }
         _assert_round_trip(record, "raw_grounding")
+        records.append(record)
+    return tuple(records), binding_by_derivation
+
+
+def _resolution_state_v3(assignment: GroundedAssignment) -> str:
+    if assignment.resolution_state == "UNIQUE" and assignment.matched_cell_ids:
+        return "EXACT"
+    if assignment.resolution_state == "AMBIGUOUS":
+        return "AMBIGUOUS"
+    return "UNRESOLVED"
+
+
+def validate_grounding_record_v3(record: Mapping[str, Any]) -> None:
+    """Fail closed on noncanonical or internally inconsistent V3 authority."""
+    if record.get("first_match_used") is not False:
+        raise ValueError("first_match_resolution")
+    if "selected_binding_id" in record:
+        raise ValueError("legacy_selected_binding_forbidden")
+    if not _valid_sha256(record.get("role_record_sha256")):
+        raise ValueError("role_record_sha256_invalid")
+    hypotheses = list(record.get("grounding_hypotheses") or ())
+    authorized = list(record.get("authorized_binding_ids") or ())
+    rejected = list(record.get("rejected_binding_ids") or ())
+    if authorized != sorted(set(authorized)) or rejected != sorted(set(rejected)):
+        raise ValueError("binding_authority_not_sorted_unique")
+    if set(authorized) & set(rejected):
+        raise ValueError("binding_authority_overlap")
+    binding_ids = [str(item.get("binding_id") or "") for item in hypotheses]
+    if len(binding_ids) != len(set(binding_ids)):
+        raise ValueError("duplicate_grounding_binding_id")
+    if set(binding_ids) != set(authorized) | set(rejected):
+        raise ValueError("binding_authority_not_exhaustive")
+    if hypotheses != sorted(
+        hypotheses,
+        key=lambda item: (
+            str(item.get("assignment_key") or ""),
+            str(item.get("assignment_id") or ""),
+            str(item.get("binding_id") or ""),
+        ),
+    ):
+        raise ValueError("grounding_hypotheses_not_canonical")
+    seen_assignments = set()
+    seen_derivations = set()
+    for hypothesis in hypotheses:
+        assignment_identity = (
+            hypothesis.get("assignment_id"),
+            hypothesis.get("assignment_key"),
+        )
+        if assignment_identity in seen_assignments:
+            raise ValueError("duplicate_grounding_assignment")
+        seen_assignments.add(assignment_identity)
+        role_bindings_sha256 = canonical_json_hash(hypothesis.get("role_bindings"))
+        if hypothesis.get("role_bindings_sha256") != role_bindings_sha256:
+            raise ValueError("role_bindings_sha256_mismatch")
+        if hypothesis.get("binding_id") != recompute_binding_id_v3(record, hypothesis):
+            raise ValueError("grounding_binding_id_mismatch")
+        state = hypothesis.get("resolution_state")
+        valid = hypothesis.get("grounding_valid") is True
+        failures = list(hypothesis.get("failure_reasons") or ())
+        if failures != sorted(set(failures)):
+            raise ValueError("grounding_failure_reasons_not_canonical")
+        if state != "EXACT" and valid:
+            if state == "AMBIGUOUS":
+                raise ValueError("ambiguous_assignment_authorized")
+            raise ValueError("unresolved_assignment_authorized")
+        if valid and (
+            not hypothesis.get("operand_node_ids")
+            or "resource_incomplete" in failures
+        ):
+            raise ValueError("invalid_exact_assignment_authorized")
+        if valid != (hypothesis.get("binding_id") in authorized):
+            raise ValueError("grounding_valid_authority_mismatch")
+        derivation_id = str(hypothesis.get("derivation_id") or "")
+        if derivation_id and not valid:
+            raise ValueError("rejected_assignment_has_derivation_id")
+        if derivation_id and not hypothesis.get("canonical_program_id"):
+            raise ValueError("grounding_derivation_program_id_empty")
+        if derivation_id:
+            if derivation_id in seen_derivations:
+                raise ValueError("duplicate_grounding_derivation_id")
+            seen_derivations.add(derivation_id)
+    expected_counts = {
+        "exact_hypothesis_count": sum(
+            item.get("resolution_state") == "EXACT" for item in hypotheses
+        ),
+        "ambiguous_hypothesis_count": sum(
+            item.get("resolution_state") == "AMBIGUOUS" for item in hypotheses
+        ),
+        "unresolved_hypothesis_count": sum(
+            item.get("resolution_state") == "UNRESOLVED" for item in hypotheses
+        ),
+        "resource_incomplete_hypothesis_count": sum(
+            "resource_incomplete" in item.get("failure_reasons", ())
+            for item in hypotheses
+        ),
+    }
+    mismatches = sorted(
+        key for key, value in expected_counts.items() if record.get(key) != value
+    )
+    if mismatches:
+        raise ValueError(f"grounding_count_mismatch:{','.join(mismatches)}")
+
+
+def _grounding_records_v3(
+    closure: PlanClosure,
+    context: ArtifactContext,
+) -> Tuple[Tuple[Dict[str, Any], ...], Dict[str, str]]:
+    if not _valid_sha256(context.role_record_sha256):
+        raise ValueError("artifact_context_role_record_sha256_invalid")
+    by_plan: Dict[str, list[GroundedAssignment]] = {}
+    for assignment in closure.assignments:
+        if not assignment.plan_id:
+            raise ValueError("grounding_plan_id_empty")
+        by_plan.setdefault(assignment.plan_id, []).append(assignment)
+    records = []
+    binding_by_derivation: Dict[str, str] = {}
+    for plan_id in sorted(by_plan):
+        assignments = tuple(sorted(
+            by_plan[plan_id],
+            key=lambda item: (item.assignment_key, item.assignment_id),
+        ))
+        hypotheses = []
+        authorized = []
+        rejected = []
+        for assignment in assignments:
+            role_bindings = to_jsonable(assignment.role_bindings)
+            role_bindings_sha256 = canonical_json_hash(role_bindings)
+            binding_id = _binding_id_v3(
+                context, assignment, role_bindings_sha256
+            )
+            state = _resolution_state_v3(assignment)
+            resource_complete = closure.resource_complete and assignment.resource_complete
+            valid = state == "EXACT" and resource_complete
+            failure_reasons = {
+                str(reason) for reason in assignment.failure_reasons if str(reason)
+            }
+            if not resource_complete:
+                failure_reasons.add("resource_incomplete")
+            if assignment.resolution_state == "UNIQUE" and not assignment.matched_cell_ids:
+                failure_reasons.add("unique_resolution_without_operands")
+            hypothesis = {
+                "binding_id": binding_id,
+                "assignment_id": assignment.assignment_id,
+                "assignment_key": assignment.assignment_key,
+                "role_bindings": role_bindings,
+                "role_bindings_sha256": role_bindings_sha256,
+                "operand_node_ids": list(assignment.matched_cell_ids),
+                "resolution_state": state,
+                "grounding_valid": valid,
+                "derivation_id": assignment.derivation_id,
+                "canonical_program_id": assignment.canonical_program_id,
+                "failure_reasons": sorted(failure_reasons),
+            }
+            hypotheses.append(hypothesis)
+            (authorized if valid else rejected).append(binding_id)
+            if assignment.derivation_id:
+                if not valid:
+                    continue
+                if assignment.derivation_id in binding_by_derivation:
+                    raise ValueError(
+                        f"duplicate_grounding_derivation_id:{assignment.derivation_id}"
+                    )
+                binding_by_derivation[assignment.derivation_id] = binding_id
+        record = {
+            "schema_version": "certa_active_grounding_record_v3",
+            "fixture_only": context.fixture_only,
+            "sample_id": context.sample_id,
+            "table_id": context.table_id,
+            "arm": context.arm,
+            "role_record_sha256": context.role_record_sha256,
+            "plan_id": plan_id,
+            "required_operand_roles": _required_roles(assignments),
+            "grounding_hypotheses": hypotheses,
+            "authorized_binding_ids": sorted(authorized),
+            "rejected_binding_ids": sorted(rejected),
+            "exact_hypothesis_count": sum(
+                item["resolution_state"] == "EXACT" for item in hypotheses
+            ),
+            "ambiguous_hypothesis_count": sum(
+                item["resolution_state"] == "AMBIGUOUS" for item in hypotheses
+            ),
+            "unresolved_hypothesis_count": sum(
+                item["resolution_state"] == "UNRESOLVED" for item in hypotheses
+            ),
+            "resource_incomplete_hypothesis_count": sum(
+                "resource_incomplete" in item["failure_reasons"]
+                for item in hypotheses
+            ),
+            "first_match_used": False,
+        }
+        validate_grounding_record_v3(record)
+        _assert_round_trip(record, "raw_grounding_v3")
         records.append(record)
     return tuple(records), binding_by_derivation
 
@@ -348,4 +582,73 @@ def serialize_plan_closure(
         raw_derivations=tuple(derivation_records),
         registry_entries=tuple(registry_entries),
         excluded_registry_derivation_ids=tuple(excluded),
+    )
+
+
+def serialize_plan_closure_v3(
+    closure: PlanClosure,
+    *,
+    context: ArtifactContext,
+    initial_answer: Any,
+) -> RawArtifactBundle:
+    """Serialize assignment-level grounding authority without selecting a hypothesis."""
+    raw_groundings, bindings = _grounding_records_v3(closure, context)
+    assignments = {
+        item.derivation_id: item
+        for item in closure.assignments
+        if item.derivation_id
+    }
+    if len(assignments) != sum(bool(item.derivation_id) for item in closure.assignments):
+        raise ValueError("duplicate_assignment_derivation_id")
+    derivation_records = []
+    registry_entries = []
+    excluded = []
+    seen_derivations = set()
+    for derivation in sorted(
+        closure.executable_derivations,
+        key=lambda item: item.derivation_id,
+    ):
+        if derivation.derivation_id in seen_derivations:
+            raise ValueError(f"duplicate_executable_derivation_id:{derivation.derivation_id}")
+        seen_derivations.add(derivation.derivation_id)
+        assignment = assignments.get(derivation.derivation_id)
+        binding_id = bindings.get(derivation.derivation_id)
+        if assignment is None or binding_id is None:
+            raise ValueError(
+                "executable_derivation_without_authorized_grounding:"
+                f"{derivation.derivation_id}"
+            )
+        record = _derivation_record(
+            assignment,
+            derivation,
+            binding_id=binding_id,
+            context=context,
+            initial_answer=initial_answer,
+        )
+        derivation_records.append(record)
+        if (
+            closure.resource_complete
+            and assignment.resource_complete
+            and derivation.provenance_complete
+            and record["provenance_ids"]
+        ):
+            registry = _registry_entry(record)
+            reconcile_registry_entry(registry, record)
+            registry_entries.append(registry)
+        else:
+            excluded.append(derivation.derivation_id)
+    if set(assignments) != seen_derivations:
+        missing = sorted(set(assignments) - seen_derivations)
+        raise ValueError(f"executed_assignment_without_derivation:{','.join(missing)}")
+    return RawArtifactBundle(
+        context=context,
+        raw_groundings=raw_groundings,
+        raw_derivations=tuple(derivation_records),
+        registry_entries=tuple(sorted(
+            registry_entries,
+            key=lambda item: (
+                item["sample_id"], item["arm"], item["derivation_id"]
+            ),
+        )),
+        excluded_registry_derivation_ids=tuple(sorted(excluded)),
     )

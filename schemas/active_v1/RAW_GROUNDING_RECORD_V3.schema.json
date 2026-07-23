@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "certa_active_v1_raw_grounding_record_v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "fixture_only",
+    "sample_id",
+    "table_id",
+    "arm",
+    "role_record_sha256",
+    "plan_id",
+    "required_operand_roles",
+    "grounding_hypotheses",
+    "authorized_binding_ids",
+    "rejected_binding_ids",
+    "exact_hypothesis_count",
+    "ambiguous_hypothesis_count",
+    "unresolved_hypothesis_count",
+    "resource_incomplete_hypothesis_count",
+    "first_match_used"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "certa_active_grounding_record_v3"
+    },
+    "fixture_only": {
+      "type": "boolean"
+    },
+    "sample_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "table_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "arm": {
+      "enum": [
+        "C0_SCHEMA_ONLY",
+        "C1_ROLE_ONLY",
+        "C2_ROLE_RETRIEVAL"
+      ]
+    },
+    "role_record_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "plan_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "required_operand_roles": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "grounding_hypotheses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "binding_id",
+          "assignment_id",
+          "assignment_key",
+          "role_bindings",
+          "role_bindings_sha256",
+          "operand_node_ids",
+          "resolution_state",
+          "grounding_valid",
+          "derivation_id",
+          "canonical_program_id",
+          "failure_reasons"
+        ],
+        "properties": {
+          "binding_id": {
+            "type": "string",
+            "pattern": "^B-[0-9a-f]{24}$"
+          },
+          "assignment_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "assignment_key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role_bindings": {
+            "type": "object"
+          },
+          "role_bindings_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "operand_node_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "resolution_state": {
+            "enum": [
+              "EXACT",
+              "AMBIGUOUS",
+              "UNRESOLVED"
+            ]
+          },
+          "grounding_valid": {
+            "type": "boolean"
+          },
+          "derivation_id": {
+            "type": "string"
+          },
+          "canonical_program_id": {
+            "type": "string"
+          },
+          "failure_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "authorized_binding_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^B-[0-9a-f]{24}$"
+      },
+      "uniqueItems": true
+    },
+    "rejected_binding_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^B-[0-9a-f]{24}$"
+      },
+      "uniqueItems": true
+    },
+    "exact_hypothesis_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ambiguous_hypothesis_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unresolved_hypothesis_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "resource_incomplete_hypothesis_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "first_match_used": {
+      "const": false
+    }
+  }
+}

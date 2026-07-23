@@ -1,0 +1,21 @@
+{
+  "schema_version": "certa_active_v1_grounding_authority_shape_fixture_v1",
+  "rows": [
+    {
+      "sample_id": "24fad1e0d3751475d5673e86e2c3a6ea",
+      "candidate_count": 1188,
+      "exact_count": 38,
+      "ambiguous_count": 144,
+      "unresolved_count": 1006,
+      "executed_derivation_count": 22
+    },
+    {
+      "sample_id": "84eab744af0915c0e4deb855efe0321d",
+      "candidate_count": 539,
+      "exact_count": 21,
+      "ambiguous_count": 33,
+      "unresolved_count": 485,
+      "executed_derivation_count": 5
+    }
+  ]
+}

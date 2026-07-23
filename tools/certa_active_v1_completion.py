@@ -15,7 +15,7 @@ if str(REPO) not in sys.path: sys.path.insert(0, str(REPO))
 from graph_builder import build_hceg
 from run_cscr_pipeline import OpenAIChatGenerator, build_structure_aware_prompt, extract_answer, load_table_for_cscr
 from certa.active_v1.answer_authority import active_answer_hash
-from certa.active_v1.artifact_authority import ArtifactContext, serialize_plan_closure
+from certa.active_v1.artifact_authority import ArtifactContext, serialize_plan_closure_v3
 from certa.active_v1.decision_adapter import assess_decision_eligibility, materialize_selected_final, reconcile_cera_decision
 from certa.active_v1.planner_adapter import ActiveCompilationResult
 from certa.active_v1.planner_bridge_v3 import build_v3_arm_view, close_compiled_payload, compile_active_planner_payload
@@ -34,7 +34,9 @@ from certa.reproducibility.canonical_json import canonical_json, canonical_json_
 from tools.certa_active_v1_schema_risk_scanner import DEFAULT_LIMITS, scan_schema
 
 PY = "/home/hsh/anaconda3/envs/table-cu128/bin/python"
-OUT = Path("/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_INTEGRATION16_TRANSPORT_PROJECTION_REEXECUTION")
+OUT = Path("/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_REPLAY")
+PRIOR = Path("/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_PREWARMED_IDENTITY_V2R2_CONTROLLER_RECOVERY_FINAL_SCIENTIFIC_DAG")
+COMPLETION = Path("/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_FINAL_ASSIGNMENT_LEVEL_GROUNDING_AUTHORITY_COMPLETION_PACK")
 CP2 = Path("/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_FINAL_RUNTIME_RECOVERY_20260722_CP2")
 R3 = Path("/home/hsh/ME/Table/EMNLP2026/certa_active_v1_outputs/CERTA_ACTIVE_V1_ROLE_V3_FINAL")
 PACK = Path("/home/hsh/ME/Table/EMNLP2026/certa_goal_packs/CERTA_ACTIVE_V1_FROZEN_ROLE_V3_FINAL_METHOD_COMPLETION_PACK")
@@ -45,6 +47,9 @@ DEV_SOURCE = Path("/home/hsh/ME/Table/EMNLP2026/certa_egra_outputs/CERTA_EGRA_V0
 HOLD_SOURCE = Path("/home/hsh/ME/Table/EMNLP2026/certa_egra_sealed/CERTA_EGRA_V0_20260720T152831Z/holdout_identity_source.jsonl")
 ARMS = ("C0_SCHEMA_ONLY", "C1_ROLE_ONLY", "C2_ROLE_RETRIEVAL")
 START = "4899cca0d5ac9ea7b27658434552eee06a417946"
+BOUND_START = "a1e8a7c761fc1f51b56d5d029a94901477eafb55"
+TARGET_BRANCH = "research/certa-active-v1-grounding-authority-final"
+SCHEMA_ONLY_ROLE_SHA = canonical_json_hash({"role_record": "SCHEMA_ONLY"})
 
 def now(): return datetime.now(timezone.utc).isoformat()
 def sha(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -120,7 +125,8 @@ def run_tool(path, *args):
     result=subprocess.run([PY,str(path),*map(str,args)],cwd=REPO,text=True,capture_output=True); print(result.stdout,end=""); print(result.stderr,end="",file=sys.stderr); return result.returncode
 
 def validate_rows(rows, schema_name):
-    schema=j(BASE/"schemas"/schema_name)
+    local=REPO/"schemas/active_v1"/schema_name
+    schema=j(local if local.is_file() else BASE/"schemas"/schema_name)
     for row in rows: jsonschema.validate(row,schema)
 
 def freeze():
@@ -161,7 +167,7 @@ def ensure_holdout_b0():
         endpoint_record=jl(OUT/"logs/ENDPOINT_LEDGER.jsonl")[-1]; rows.append({"schema_version":"certa_active_v1_b0_freeze_v1","sample_id":sid,"table_id":rt["table_id"],"source_order":len(rows),"question_sha256":hashlib.sha256(rt["question"].encode()).hexdigest(),"raw_text":text,"b0_answer":answer,"b0_answer_sha256":active_answer_hash(answer),"raw_request_path":endpoint_record["raw_request_path"],"raw_request_sha256":endpoint_record["request_sha256"],"raw_response_path":endpoint_record["raw_response_path"],"raw_response_sha256":endpoint_record["response_sha256"],"api_usage":out.get("api_usage",{}),"generation_seconds":out.get("generation_seconds",0)}); wl(p["b0"],rows)
 
 def identity(rt,b0,arm,role_hash,graph_count,card_count):
-    combined=canonical_json_hash({x:sha(BASE/"schemas"/x) for x in ("RAW_GROUNDING_RECORD_SCHEMA.json","RAW_DERIVATION_RECORD_SCHEMA.json","REGISTRY_ENTRY_SCHEMA.json")})
+    combined=canonical_json_hash({"RAW_GROUNDING_RECORD_V3.schema.json":sha(REPO/"schemas/active_v1/RAW_GROUNDING_RECORD_V3.schema.json"),**{x:sha(BASE/"schemas"/x) for x in ("RAW_DERIVATION_RECORD_SCHEMA.json","REGISTRY_ENTRY_SCHEMA.json")}})
     return {"sample_id":rt["id"],"table_id":rt["table_id"],"question_sha256":hashlib.sha256(rt["question"].encode()).hexdigest(),"b0_answer_sha256":b0["b0_answer_sha256"],"role_record_sha256":role_hash,"method_sha":git("rev-parse","HEAD"),"model_profile_sha256":sha(PROFILE),"operation_registry_sha256":sha(REPO/"certa/operations/contracts.py"),"planner_schema_sha256":sha(REPO/"certa/planner/typed_planner.py"),"closure_sha256":sha(REPO/"certa/grounding/plan_closure.py"),"executor_sha256":sha(REPO/"certa/derivations/project.py"),"artifact_schema_sha256":combined,"arm":arm,"graph_node_count":graph_count,"card_count":card_count if arm=="C2_ROLE_RETRIEVAL" else 0,"gold_accessed":False,"runtime_leakage":False,"final_answer_sha256":b0["b0_answer_sha256"]}
 
 def constructor(split, limit, arms):
@@ -191,24 +197,132 @@ def constructor(split, limit, arms):
                 if arm=="C2_ROLE_RETRIEVAL" and retrieval is None: raise ValueError("c2_retrieval_unavailable")
                 built=build_v3_arm_view(arm,rt["question"],graph,table,role,retrieval,matrix,output_schema=rschema,canonical_registry=registry); view=built.view; pschema=build_typed_planner_response_schema(view,require_signature_id=True); tschema=build_planner_transport_schema(pschema); prompt=build_typed_derivation_planner_prompt(view); text,out=model_call(gen,f"{split.upper()}_PLANNER_{arm}",sid,prompt,512,schema=tschema,full_schema=pschema,planner_view=view); validation=validate_typed_planner_output(text,view,require_signature_id=True); record_planner_full_local_validation(jl(OUT/"logs/ENDPOINT_LEDGER.jsonl")[-1],validation); comp=compile_active_planner_payload(text,view,matrix)
                 if not comp.ok: raise ValueError("planner_invalid:"+"|".join(comp.errors))
-                closure=close_compiled_payload(comp,graph,matrix); bundle=serialize_plan_closure(closure,context=ArtifactContext(sid,rt["table_id"],arm,(role or {}).get("role_id","SCHEMA_ONLY")),initial_answer=b0m[sid]["b0_answer"]); grounds.extend(bundle.raw_groundings); derivs.extend(bundle.raw_derivations); regs.extend(bundle.registry_entries)
+                closure=close_compiled_payload(comp,graph,matrix); bundle=serialize_plan_closure_v3(closure,context=ArtifactContext(sid,rt["table_id"],arm,(role or {}).get("role_id","SCHEMA_ONLY"),role_record_sha256=(rolehash or SCHEMA_ONLY_ROLE_SHA)),initial_answer=b0m[sid]["b0_answer"]); grounds.extend(bundle.raw_groundings); derivs.extend(bundle.raw_derivations); regs.extend(bundle.registry_entries)
                 state={"sample_id":sid,"arm":arm,"graph_sha256":canonical_json_hash(graph.to_dict()),"catalog_sha256":catalog.get("catalog_sha256"),"cards_sha256":canonical_json_hash(cards),"planner_view_sha256":canonical_json_hash(view),"normalized_payload":comp.normalized_payload,"allowed_signature_ids":list(comp.allowed_signature_ids),"role":role,"retrieval":retrieval,"closure_sha256":canonical_json_hash(closure.to_dict()),"planner_endpoint_record":jl(OUT/"logs/ENDPOINT_LEDGER.jsonl")[-1],"planner_usage":out.get("api_usage",{})}; w(d/"STATE"/f"{sid}_{arm}.json",state)
             except ValueError as exc: fails.append({"schema_version":"certa_active_v1_row_failure_v1","sample_id":sid,"table_id":rt["table_id"],"arm":arm,"failure_stage":"CONSTRUCTOR","error_code":str(exc).split(":",1)[0],"exception_class":"ValueError","message_sha256":hashlib.sha256(str(exc).encode()).hexdigest(),"row_preserved":True,"fallback_arm":"NONE","created_at":now()})
             ids.append(identity(rt,b0m[sid],arm,rolehash,graph_count,card_count)); seen.add((sid,arm)); wl(d/p["ids"],ids); wl(d/p["ground"],grounds); wl(d/p["deriv"],derivs); wl(d/p["reg"],regs); wl(d/p["fail"],fails)
-    for rows,name in ((ids,"CONSTRUCTOR_SAMPLE_IDENTITY_SCHEMA.json"),(grounds,"RAW_GROUNDING_RECORD_SCHEMA.json"),(derivs,"RAW_DERIVATION_RECORD_SCHEMA.json"),(regs,"REGISTRY_ENTRY_SCHEMA.json")): validate_rows(rows,name)
+    for rows,name in ((ids,"CONSTRUCTOR_SAMPLE_IDENTITY_SCHEMA.json"),(grounds,"RAW_GROUNDING_RECORD_V3.schema.json"),(derivs,"RAW_DERIVATION_RECORD_SCHEMA.json"),(regs,"REGISTRY_ENTRY_SCHEMA.json")): validate_rows(rows,name)
     constructor_cost=cost_ledger((("DEV" if split=="dev" else "HOLDOUT")+"_ROLE_V3",("DEV" if split=="dev" else "HOLDOUT")+"_PLANNER_")); w(d/("CONSTRUCTOR_COST_LEDGER.json" if split=="dev" else "HOLDOUT_CONSTRUCTOR_COST_LEDGER.json"),constructor_cost)
     if split=="dev" and limit==16:
         first={x["id"] for x in runtime}; integ=OUT/"integration"; states=[j(x) for x in sorted((d/"STATE").glob("*.json")) if j(x).get("sample_id") in first]; mapping=((p["ids"],"INTEGRATION16_IDENTITIES.jsonl",ids),(p["roles"],"INTEGRATION16_ROLE_RECORDS.jsonl",roles),(p["ground"],"INTEGRATION16_RAW_GROUNDINGS.jsonl",grounds),(p["deriv"],"INTEGRATION16_RAW_DERIVATIONS.jsonl",derivs),(p["reg"],"INTEGRATION16_REGISTRY.jsonl",regs),(p["fail"],"INTEGRATION16_ROW_FAILURES.jsonl",fails),(p["pre"],"INTEGRATION16_ACTIVE_STRUCTURE_PREFLIGHT.jsonl",prefs),('',"INTEGRATION16_STATES.jsonl",states))
         for _,name,rows in mapping: wl(integ/name,[x for x in rows if x.get("sample_id") in first])
         w(integ/"INTEGRATION16_COST_LEDGER.json",constructor_cost); w(integ/"INTEGRATION_REPAIR_RECORD.json",{"repair_attempt_count":0,"repair_performed":False,"created_at":now()}); return run_tool(BASE/"tools/compute_certa_active_operational_sentinel.py","--identities",integ/"INTEGRATION16_IDENTITIES.jsonl","--derivations",integ/"INTEGRATION16_RAW_DERIVATIONS.jsonl","--repair-attempt-count","0","--output",integ/"INTEGRATION16_GATE.json")
     if split=="dev" and limit==64:
-        rc=run_tool(BASE/"tools/compute_certa_active_constructor_gate.py","--identities",d/p["ids"],"--role-records",d/p["roles"],"--groundings",d/p["ground"],"--derivations",d/p["deriv"],"--registry",d/p["reg"],"--cost-ledger",d/"CONSTRUCTOR_COST_LEDGER.json","--output",d/"CONSTRUCTOR_GATE_C.json")
-        if not rc: w(OUT/"freeze/CONSTRUCTOR_FREEZE.json",{"schema_version":"certa_active_constructor_freeze_v2","method_sha":git("rev-parse","HEAD"),"identities_sha256":sha(d/p["ids"]),"groundings_sha256":sha(d/p["ground"]),"derivations_sha256":sha(d/p["deriv"]),"registry_sha256":sha(d/p["reg"]),"constructor_gate_sha256":sha(d/"CONSTRUCTOR_GATE_C.json"),"created_at":now()})
+        rc=run_tool(REPO/"tools/compute_certa_active_constructor_gate_v3.py","--identities",d/p["ids"],"--role-records",d/p["roles"],"--groundings",d/p["ground"],"--derivations",d/p["deriv"],"--registry",d/p["reg"],"--cost-ledger",d/"CONSTRUCTOR_COST_LEDGER.json","--output",d/"CONSTRUCTOR_GATE_C_V3.json")
+        if not rc: w(OUT/"freeze/CONSTRUCTOR_FREEZE.json",{"schema_version":"certa_active_constructor_freeze_v3","method_sha":git("rev-parse","HEAD"),"identities_sha256":sha(d/p["ids"]),"groundings_sha256":sha(d/p["ground"]),"derivations_sha256":sha(d/p["deriv"]),"registry_sha256":sha(d/p["reg"]),"constructor_gate_sha256":sha(d/"CONSTRUCTOR_GATE_C_V3.json"),"created_at":now()})
         return rc
     return 0
 
 def rebuild_closure(rt, state, matrix):
     table=load_table_for_cscr(rt,str(TABLES),{},"hitab"); graph=build_hceg(table,rt["question"]); payload=state["normalized_payload"]; comp=ActiveCompilationResult(True,payload,canonical_json(payload),canonical_json_hash(payload),tuple(state["allowed_signature_ids"]),()); return graph,close_compiled_payload(comp,graph,matrix)
+
+def verify_replay_state(state, local_validation, closure):
+    payload_sha=canonical_json_hash(state["normalized_payload"])
+    if not local_validation.get("ok") or local_validation.get("normalized_payload_sha256")!=payload_sha:
+        raise ValueError(f"replay_normalized_payload_drift:{state['sample_id']}:{state['arm']}")
+    closure_sha=canonical_json_hash(closure.to_dict())
+    if state.get("closure_sha256")!=closure_sha:
+        raise ValueError(f"replay_closure_drift:{state['sample_id']}:{state['arm']}")
+    return {"sample_id":state["sample_id"],"arm":state["arm"],"normalized_payload_sha256":payload_sha,"prior_closure_sha256":state["closure_sha256"],"rebuilt_closure_sha256":closure_sha,"normalized_payload_match":True,"closure_match":True}
+
+def _verify_prior_replay_source():
+    binding=j(COMPLETION/"SOURCE_AND_OUTPUT_BINDINGS.json")
+    checks={
+        PRIOR/"integration/INTEGRATION16_GATE.json":binding["source_integration_gate_sha256"],
+        PRIOR/"constructor/CONSTRUCTOR_GATE_C.json":binding["source_constructor_gate_sha256"],
+        PRIOR/"reviews/INTEGRATION_FAILURE_TAXONOMY.json":binding["source_integration_taxonomy_sha256"],
+        PRIOR/"reviews/PER_SIGNATURE_CONSTRUCTOR_AUDIT.json":binding["source_constructor_audit_sha256"],
+        PRIOR/"terminal/SHA256SUMS.txt":binding["source_manifest_sha256"],
+    }
+    mismatches=[str(path) for path,expected in checks.items() if not path.is_file() or sha(path)!=expected]
+    if mismatches: raise RuntimeError("bound_prior_artifact_mismatch:"+"|".join(mismatches))
+    manifest=PRIOR/"terminal/SHA256SUMS.txt"
+    if len(manifest.read_text(encoding="utf-8").splitlines())!=binding["source_manifest_entries"]:
+        raise RuntimeError("prior_manifest_entry_count_mismatch")
+    result=subprocess.run(["sha256sum","--quiet","-c",str(manifest)],cwd=PRIOR)
+    if result.returncode: raise RuntimeError("prior_manifest_verification_failed")
+    terminal=j(PRIOR/"terminal/FINAL_METHOD_FREEZE_MANIFEST.json")
+    if terminal.get("terminal_state")!=binding["source_terminal"]:
+        raise RuntimeError("prior_terminal_state_mismatch")
+    return binding
+
+def _replay_lineage(groundings, derivations, registry):
+    source=j(OUT/"lineage/PRIOR_27_MISMATCH_LINEAGE.json")
+    columns=source["lineage_columns"]; index={name:i for i,name in enumerate(columns)}
+    authorized={(r["sample_id"],r["arm"],bid) for r in groundings for bid in r["authorized_binding_ids"]}
+    derivation_by={(r["sample_id"],r["derivation_id"]):r for r in derivations}
+    registry_by={(r["sample_id"],r["derivation_id"]):r for r in registry}
+    rows=[]
+    for prior in source["lineage_rows"]:
+        sample_id=prior[index["sample_id"]]; derivation_id=prior[index["derivation_id"]]
+        derivation=derivation_by.get((sample_id,derivation_id)); registry_row=registry_by.get((sample_id,derivation_id))
+        reconciled=bool(derivation and registry_row and (sample_id,derivation["arm"],derivation["binding_id"]) in authorized)
+        rows.append({"prior_mismatch_ordinal":prior[index["prior_mismatch_ordinal"]],"sample_id":sample_id,"derivation_id":derivation_id,"prior_binding_id":prior[index["binding_id"]],"v3_binding_id":derivation.get("binding_id") if derivation else None,"authorized_exact_assignment":reconciled,"registry_entry_id":registry_row.get("registry_entry_id") if registry_row else None})
+    if len(rows)!=27 or not all(row["authorized_exact_assignment"] for row in rows):
+        raise RuntimeError("prior_27_reconciliation_incomplete")
+    result={"schema_version":"certa_active_v1_replay_27_reconciliation_v1","prior_lineage_sha256":sha(OUT/"lineage/PRIOR_27_MISMATCH_LINEAGE.json"),"row_count":len(rows),"reconciled_count":sum(row["authorized_exact_assignment"] for row in rows),"unexplained_count":0,"rows":rows}
+    w(OUT/"lineage/REPLAY_27_RECONCILIATION.json",result)
+    return result
+
+def offline_replay():
+    if git("status","--porcelain"): raise RuntimeError("offline_replay_requires_clean_worktree")
+    if git("branch","--show-current")!=TARGET_BRANCH: raise RuntimeError("offline_replay_wrong_branch")
+    if (OUT/"constructor").exists() or (OUT/"replay").exists(): raise RuntimeError("offline_replay_output_already_materialized")
+    binding=_verify_prior_replay_source()
+    copies=(
+        ("inputs/dev64_runtime.jsonl","inputs/dev64_runtime.jsonl"),
+        ("b0/DEV_B0_FREEZE.jsonl","b0/DEV_B0_FREEZE.jsonl"),
+        ("constructor/DEV64_ROLE_V3_RECORDS.blind.jsonl","constructor/DEV64_ROLE_V3_RECORDS.blind.jsonl"),
+        ("constructor/ROW_FAILURES.jsonl","constructor/ROW_FAILURES.jsonl"),
+        ("freeze/CONSTRUCTOR_CAPABILITY_MATRIX.json","freeze/CONSTRUCTOR_CAPABILITY_MATRIX.json"),
+    )
+    for source,target in copies: bound_copy(PRIOR/source,OUT/target)
+    runtime=jl(OUT/"inputs/dev64_runtime.jsonl"); runtime_by={row["id"]:row for row in runtime}
+    b0_by={row["sample_id"]:row for row in jl(OUT/"b0/DEV_B0_FREEZE.jsonl")}
+    roles=jl(OUT/"constructor/DEV64_ROLE_V3_RECORDS.blind.jsonl"); role_by={row["sample_id"]:row for row in roles}
+    matrix=j(OUT/"freeze/CONSTRUCTOR_CAPABILITY_MATRIX.json")
+    grounds=[]; derivs=[]; regs=[]; replay_rows=[]
+    state_paths=sorted((PRIOR/"constructor/STATE").glob("*.json"))
+    for source_state in state_paths:
+        state=j(source_state); sample_id=state["sample_id"]; arm=state["arm"]
+        endpoint=state["planner_endpoint_record"]; request_path=Path(endpoint["raw_request_path"]); response_path=Path(endpoint["raw_response_path"])
+        if PRIOR not in request_path.parents or PRIOR not in response_path.parents: raise RuntimeError("replay_input_outside_prior_root")
+        validation_path=_planner_artifact_path(request_path,"_full_local_validation.json")
+        for source in (source_state,request_path,response_path,validation_path):
+            bound_copy(source,OUT/"replay_inputs"/source.relative_to(PRIOR))
+        graph,closure=rebuild_closure(runtime_by[sample_id],state,matrix)
+        if canonical_json_hash(graph.to_dict())!=state["graph_sha256"]: raise ValueError(f"replay_graph_drift:{sample_id}:{arm}")
+        replay_rows.append(verify_replay_state(state,j(validation_path),closure))
+        role_row=role_by.get(sample_id,{})
+        role=state.get("role") or {}
+        role_sha=SCHEMA_ONLY_ROLE_SHA if arm=="C0_SCHEMA_ONLY" else str(role_row.get("record_sha256") or "")
+        bundle=serialize_plan_closure_v3(closure,context=ArtifactContext(sample_id,runtime_by[sample_id]["table_id"],arm,role.get("role_id","SCHEMA_ONLY"),role_record_sha256=role_sha),initial_answer=b0_by[sample_id]["b0_answer"])
+        grounds.extend(bundle.raw_groundings); derivs.extend(bundle.raw_derivations); regs.extend(bundle.registry_entries)
+    prior_derivs=jl(PRIOR/"constructor/RAW_DERIVATIONS.jsonl")
+    strip_binding=lambda rows: sorted(({k:v for k,v in row.items() if k!="binding_id"} for row in rows),key=lambda row:(row["sample_id"],row["arm"],row["derivation_id"]))
+    if strip_binding(derivs)!=strip_binding(prior_derivs): raise RuntimeError("raw_derivation_semantics_drift")
+    if sorted(regs,key=lambda row:row["registry_entry_id"])!=sorted(jl(PRIOR/"constructor/FROZEN_REGISTRY.jsonl"),key=lambda row:row["registry_entry_id"]): raise RuntimeError("registry_semantics_drift")
+    artifact_schema_sha=canonical_json_hash({"RAW_GROUNDING_RECORD_V3.schema.json":sha(REPO/"schemas/active_v1/RAW_GROUNDING_RECORD_V3.schema.json"),"RAW_DERIVATION_RECORD_SCHEMA.json":sha(BASE/"schemas/RAW_DERIVATION_RECORD_SCHEMA.json"),"REGISTRY_ENTRY_SCHEMA.json":sha(BASE/"schemas/REGISTRY_ENTRY_SCHEMA.json")})
+    identities=[]
+    for row in jl(PRIOR/"constructor/DEV64_IDENTITIES.blind.jsonl"):
+        identities.append({**row,"method_sha":git("rev-parse","HEAD"),"artifact_schema_sha256":artifact_schema_sha})
+    wl(OUT/"constructor/DEV64_IDENTITIES.blind.jsonl",identities); wl(OUT/"constructor/RAW_GROUNDINGS_V3.jsonl",grounds); wl(OUT/"constructor/RAW_DERIVATIONS.jsonl",derivs); wl(OUT/"constructor/FROZEN_REGISTRY.jsonl",regs); wl(OUT/"replay/STATE_REBUILD_VALIDATION.jsonl",replay_rows)
+    for rows,name in ((identities,"CONSTRUCTOR_SAMPLE_IDENTITY_SCHEMA.json"),(grounds,"RAW_GROUNDING_RECORD_V3.schema.json"),(derivs,"RAW_DERIVATION_RECORD_SCHEMA.json"),(regs,"REGISTRY_ENTRY_SCHEMA.json")): validate_rows(rows,name)
+    zero_cost={"schema_version":"certa_active_v1_offline_replay_cost_v1","logical_calls":0,"transport_attempts":0,"prompt_tokens":0,"completion_tokens":0,"by_call_type":{},"cost_usd":"NOT_APPLICABLE_OFFLINE_REPLAY"}
+    w(OUT/"constructor/CONSTRUCTOR_COST_LEDGER.json",zero_cost); w(OUT/"logs/OFFLINE_REPLAY_ACCESS_LEDGER.json",{"schema_version":"certa_active_v1_offline_replay_access_v1","endpoint_calls":0,"gold_accesses":0,"sealed_label_accesses":0,"decision_calls":0,"cera_calls":0,"holdout_calls":0})
+    lineage=_replay_lineage(grounds,derivs,regs)
+    gate_path=OUT/"constructor/CONSTRUCTOR_GATE_C_V3.json"
+    run_tool(REPO/"tools/compute_certa_active_constructor_gate_v3.py","--identities",OUT/"constructor/DEV64_IDENTITIES.blind.jsonl","--role-records",OUT/"constructor/DEV64_ROLE_V3_RECORDS.blind.jsonl","--groundings",OUT/"constructor/RAW_GROUNDINGS_V3.jsonl","--derivations",OUT/"constructor/RAW_DERIVATIONS.jsonl","--registry",OUT/"constructor/FROZEN_REGISTRY.jsonl","--cost-ledger",OUT/"constructor/CONSTRUCTOR_COST_LEDGER.json","--output",gate_path)
+    gate=j(gate_path)
+    if any(gate["safety"].values()) or lineage["unexplained_count"] or len(replay_rows)!=len(state_paths):
+        raise RuntimeError("offline_replay_mechanical_validation_failed")
+    frozen_paths=["certa/active_v1/role_contract_v3.py","certa/active_v1/planner_bridge_v3.py","certa/active_v1/planner_transport_projection.py","certa/planner/typed_planner.py","certa/planner/schema_view.py","certa/egra/retrieval.py","certa/grounding/structural_resolvers.py","certa/grounding/plan_closure.py","certa/operations/contracts.py","certa/derivations/project.py","certa/derivations/answer_equivalence.py","certa/derivations/iade.py","certa/derivations/contrast.py","certa/active_v1/decision_adapter.py","graph_builder.py","run_cscr_pipeline.py"]
+    drift=[path for path in frozen_paths if git("rev-parse",f"{BOUND_START}:{path}")!=git("rev-parse",f"HEAD:{path}")]
+    if drift: raise RuntimeError("frozen_source_drift:"+"|".join(drift))
+    w(OUT/"freeze/IMPLEMENTATION_SOURCE_FREEZE.json",{"schema_version":"certa_active_v1_grounding_authority_implementation_freeze_v1","method_sha":git("rev-parse","HEAD"),"branch":TARGET_BRANCH,"start_commit":BOUND_START,"changed_paths":git("diff","--name-only",BOUND_START,"HEAD").splitlines(),"frozen_git_blobs":{path:git("rev-parse",f"HEAD:{path}") for path in frozen_paths},"v3_schema_sha256":sha(REPO/"schemas/active_v1/RAW_GROUNDING_RECORD_V3.schema.json"),"v3_gate_sha256":sha(REPO/"tools/compute_certa_active_constructor_gate_v3.py"),"artifact_authority_sha256":sha(REPO/"certa/active_v1/artifact_authority.py"),"runner_sha256":sha(REPO/"tools/certa_active_v1_completion.py"),"completion_pack_sha256":sha(COMPLETION/"SHA256SUMS.txt"),"prior_manifest_sha256":binding["source_manifest_sha256"],"endpoint_calls":0,"gold_accesses":0,"sealed_label_accesses":0,"created_at":now()})
+    summary={"schema_version":"certa_active_v1_offline_grounding_authority_replay_v1","method_sha":git("rev-parse","HEAD"),"prior_output_root":str(PRIOR),"state_count":len(state_paths),"normalized_payload_matches":sum(row["normalized_payload_match"] for row in replay_rows),"closure_matches":sum(row["closure_match"] for row in replay_rows),"raw_grounding_count":len(grounds),"raw_derivation_count":len(derivs),"registry_count":len(regs),"prior_27_reconciled":lineage["reconciled_count"],"endpoint_calls":0,"gold_accesses":0,"sealed_label_accesses":0,"gate_pass":gate["pass"],"gate_failure_reasons":gate["failure_reasons"],"scientifically_valid":True}
+    w(OUT/"replay/OFFLINE_REPLAY_SUMMARY.json",summary)
+    return 0
 
 def decision(split):
     p=paths(split); d=p["dir"]; runtime=jl(p["runtime"]); b0m={x["sample_id"]:x for x in jl(p["b0"])}; rolem={x["sample_id"]:x for x in jl(d/p["roles"])}; raw=jl(d/p["deriv"]); regs=jl(d/p["reg"]); cm=j(OUT/"freeze/CONSTRUCTOR_CAPABILITY_MATRIX.json"); dm=j(OUT/"freeze/DECISION_CAPABILITY_MATRIX.json"); active={x["role_id"] for x in dm["rows"] if x["decision_active"]}; contexts=[]; vault={}
@@ -271,12 +385,38 @@ def finalize(state):
     w(td/"REQUIRED_ARTIFACTS.json",{"schema_version":"certa_active_v1_required_artifacts_v1","terminal_state":state,"artifacts":disposition}); w(td/"FINAL_METHOD_FREEZE_MANIFEST.json",{"schema_version":"certa_active_v1_final_method_freeze_v1","terminal_state":state,"method_sha":git("rev-parse","HEAD"),"implementation_freeze_sha256":sha(OUT/"freeze/IMPLEMENTATION_SOURCE_FREEZE.json"),"worktree_clean":True,"created_at":now()}); w(td/"FINAL_TERMINAL_STATE.json",{"schema_version":"certa_active_v1_final_completion_terminal_v1","terminal_state":state,"method_sha":git("rev-parse","HEAD"),"method_frozen":True,"no_new_method_round":True,"experiment_only_authorized":state=="FREEZE_CERTA_ACTIVE_METHOD_EXPERIMENT_ONLY","created_at":now()})
     bundle=td/"CERTA_ACTIVE_V1_FINAL_COMPLETION.bundle"; subprocess.run(["git","bundle","create",str(bundle),"research/certa-active-v1"],cwd=REPO,check=True); subprocess.run(["git","bundle","verify",str(bundle)],cwd=REPO,check=True,capture_output=True); files=sorted(x for x in OUT.rglob("*") if x.is_file() and x.name!="SHA256SUMS.txt"); (td/"SHA256SUMS.txt").write_text("".join(f"{sha(x)}  {x.relative_to(OUT)}\n" for x in files)); (td/"TERMINAL_REPORT.md").write_text(f"# CERTA Active V1 Final Completion\n\nTerminal: `{state}`\n\nCommit: `{git('rev-parse','HEAD')}`\n\nLogical calls: `{cost_ledger()['logical_calls']}`\n",encoding="utf-8")
 
+def finalize_grounding(state):
+    allowed={"FREEZE_CERTA_ACTIVE_METHOD_READY_FOR_FINAL_DECISION_EXECUTION","FREEZE_CERTA_ACTIVE_GROUNDING_AUTHORITY_REPLAY_FAILED","FREEZE_CERTA_ACTIVE_GROUNDING_AUTHORITY_VALID_NO_PAIRED_CONTRAST"}
+    if state not in allowed: raise ValueError("grounding_terminal_invalid")
+    if git("status","--porcelain"): raise RuntimeError("grounding_finalize_requires_clean_worktree")
+    head=git("rev-parse","HEAD")
+    if git("branch","--show-current")!=TARGET_BRANCH or git("rev-parse",f"origin/{TARGET_BRANCH}")!=head: raise RuntimeError("grounding_finalize_requires_pushed_branch")
+    gate=j(OUT/"constructor/CONSTRUCTOR_GATE_C_V3.json"); replay=j(OUT/"replay/OFFLINE_REPLAY_SUMMARY.json"); access=j(OUT/"logs/OFFLINE_REPLAY_ACCESS_LEDGER.json")
+    if any(access[key] for key in ("endpoint_calls","gold_accesses","sealed_label_accesses","decision_calls","cera_calls","holdout_calls")): raise RuntimeError("forbidden_access_recorded")
+    expected=("FREEZE_CERTA_ACTIVE_METHOD_READY_FOR_FINAL_DECISION_EXECUTION" if gate["pass"] else "FREEZE_CERTA_ACTIVE_GROUNDING_AUTHORITY_VALID_NO_PAIRED_CONTRAST")
+    if state!=expected or not replay["scientifically_valid"]: raise RuntimeError("grounding_terminal_evidence_mismatch")
+    td=OUT/"terminal"; bundle=td/"CERTA_ACTIVE_V1_GROUNDING_AUTHORITY_FINAL.bundle"
+    w(td/"COST_LEDGER.json",{"schema_version":"certa_active_v1_grounding_authority_cost_v1","logical_calls":0,"transport_attempts":0,"prompt_tokens":0,"completion_tokens":0,"cost_usd":"NOT_APPLICABLE_OFFLINE_REPLAY"})
+    subprocess.run(["git","bundle","create",str(bundle),TARGET_BRANCH],cwd=REPO,check=True)
+    verify=subprocess.run(["git","bundle","verify",str(bundle)],cwd=REPO,text=True,capture_output=True,check=True)
+    w(td/"BUNDLE_VERIFICATION.json",{"schema_version":"certa_active_v1_bundle_verification_v1","bundle_sha256":sha(bundle),"verified":True,"head":head,"branch":TARGET_BRANCH,"stdout":verify.stdout.strip(),"stderr":verify.stderr.strip()})
+    required=["audits/01_GROUNDING_AUTHORITY_FORMAL_AUDIT.md","audits/02_REAL_TABLE_BINDING_FAILURE_ANALYSIS.md","audits/03_ARTIFACT_GATE_RECONCILIATION_AUDIT.md","audits/04_HOSTILE_AAAI_REVIEW.md","lineage/PRIOR_27_MISMATCH_LINEAGE.json","lineage/REPLAY_27_RECONCILIATION.json","freeze/IMPLEMENTATION_SOURCE_FREEZE.json","replay/OFFLINE_REPLAY_SUMMARY.json","replay/STATE_REBUILD_VALIDATION.jsonl","constructor/CONSTRUCTOR_GATE_C_V3.json","logs/OFFLINE_REPLAY_ACCESS_LEDGER.json"]
+    missing=[path for path in required if not (OUT/path).is_file()]
+    if missing: raise RuntimeError("required_grounding_artifact_missing:"+"|".join(missing))
+    w(td/"REQUIRED_ARTIFACTS.json",{"schema_version":"certa_active_v1_grounding_authority_required_artifacts_v1","terminal_state":state,"artifacts":[{"path":path,"status":"PRESENT","sha256":sha(OUT/path)} for path in required]})
+    w(td/"FINAL_METHOD_FREEZE_MANIFEST.json",{"schema_version":"certa_active_v1_grounding_authority_final_freeze_v1","terminal_state":state,"method_sha":head,"branch":TARGET_BRANCH,"repository_clean":True,"repository_pushed":True,"bundle_verified":True,"gate_v3_sha256":sha(OUT/"constructor/CONSTRUCTOR_GATE_C_V3.json"),"replay_summary_sha256":sha(OUT/"replay/OFFLINE_REPLAY_SUMMARY.json"),"endpoint_calls":0,"gold_accesses":0,"sealed_label_accesses":0,"created_at":now()})
+    w(td/"FINAL_TERMINAL_STATE.json",{"schema_version":"certa_active_v1_grounding_authority_terminal_v1","terminal_state":state,"method_sha":head,"method_frozen":True,"final_decision_execution_authorized":state=="FREEZE_CERTA_ACTIVE_METHOD_READY_FOR_FINAL_DECISION_EXECUTION","active_v1_method_line_stopped":state=="FREEZE_CERTA_ACTIVE_GROUNDING_AUTHORITY_VALID_NO_PAIRED_CONTRAST","created_at":now()})
+    files=sorted(path for path in OUT.rglob("*") if path.is_file() and path.name!="SHA256SUMS.txt")
+    (td/"SHA256SUMS.txt").write_text("".join(f"{sha(path)}  {path.relative_to(OUT)}\n" for path in files),encoding="utf-8")
+    (td/"TERMINAL_REPORT.md").write_text(f"# CERTA Active V1 Grounding Authority Completion\n\nTerminal: `{state}`\n\nCommit: `{head}`\n\nGate C V3 pass: `{gate['pass']}`\n\nOffline endpoint calls: `0`\n",encoding="utf-8")
+
 def main():
-    ap=argparse.ArgumentParser(); ap.add_argument("command",choices=("freeze","preflight","integration16","constructor64","decision-dev","unblind-dev","holdout-blind","unblind-holdout","finalize")); ap.add_argument("--state"); a=ap.parse_args(); rc=0
+    ap=argparse.ArgumentParser(); ap.add_argument("command",choices=("freeze","preflight","integration16","constructor64","offline-replay","decision-dev","unblind-dev","holdout-blind","unblind-holdout","finalize","finalize-grounding")); ap.add_argument("--state"); a=ap.parse_args(); rc=0
     if a.command=="freeze": freeze()
     elif a.command=="preflight": rc=preflight()
     elif a.command=="integration16": rc=constructor("dev",16,ARMS)
     elif a.command=="constructor64": rc=constructor("dev",64,ARMS)
+    elif a.command=="offline-replay": rc=offline_replay()
     elif a.command=="decision-dev": rc=decision("dev")
     elif a.command=="unblind-dev": rc=unblind("dev")
     elif a.command=="holdout-blind": rc=holdout_blind()
@@ -284,6 +424,9 @@ def main():
     elif a.command=="finalize":
         if not a.state: raise SystemExit("--state required")
         finalize(a.state)
+    elif a.command=="finalize-grounding":
+        if not a.state: raise SystemExit("--state required")
+        finalize_grounding(a.state)
     raise SystemExit(rc)
 
 if __name__=="__main__": main()
