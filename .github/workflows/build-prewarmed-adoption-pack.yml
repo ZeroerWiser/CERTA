@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Generate checksums and validate
+      - name: Generate checksums
         shell: bash
         run: |
           set -euo pipefail
@@ -28,15 +28,31 @@ jobs:
                   rows.append(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(root)}")
           (root/'SHA256SUMS.txt').write_text('\n'.join(rows)+'\n', encoding='utf-8')
           PY
-          python3 "$PACK/validate_pack.py" --pack-root "$PACK"
+      - name: Validate and build
+        id: validate
+        shell: bash
+        continue-on-error: true
+        run: |
+          set +e
+          PACK=CERTA_ACTIVE_V1_PREWARMED_SERVICE_ADOPTION_CONTROLLER_PACK
+          python3 "$PACK/validate_pack.py" --pack-root "$PACK" > VALIDATION.log 2>&1
+          rc=$?
+          echo "$rc" > VALIDATION.exit
           zip -qr "${PACK}.zip" "$PACK"
           sha256sum "${PACK}.zip" > "${PACK}_ZIP_SHA256.txt"
-      - name: Upload validated pack
+          exit 0
+      - name: Upload build diagnostics and pack
         uses: actions/upload-artifact@v4
         with:
           name: CERTA_ACTIVE_V1_PREWARMED_SERVICE_ADOPTION_CONTROLLER_PACK
           path: |
             CERTA_ACTIVE_V1_PREWARMED_SERVICE_ADOPTION_CONTROLLER_PACK.zip
             CERTA_ACTIVE_V1_PREWARMED_SERVICE_ADOPTION_CONTROLLER_PACK_ZIP_SHA256.txt
+            VALIDATION.log
+            VALIDATION.exit
           if-no-files-found: error
           retention-days: 30
+      - name: Enforce validation result
+        shell: bash
+        run: |
+          test "$(cat VALIDATION.exit)" = "0"
