@@ -7,6 +7,7 @@ on:
       - ".github/workflows/build-prewarmed-adoption-pack.yml"
 permissions:
   contents: read
+  pull-requests: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -41,13 +42,17 @@ jobs:
           zip -qr "${PACK}.zip" "$PACK"
           sha256sum "${PACK}.zip" > "${PACK}_ZIP_SHA256.txt"
           exit 0
-      - name: Print validation diagnostics
+      - name: Publish validation diagnostic
         if: always()
-        shell: bash
-        run: |
-          echo "VALIDATION_EXIT=$(cat VALIDATION.exit)"
-          cat VALIDATION.log
-          cat CERTA_ACTIVE_V1_PREWARMED_SERVICE_ADOPTION_CONTROLLER_PACK_ZIP_SHA256.txt
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const validation = fs.readFileSync('VALIDATION.log', 'utf8');
+            const exitCode = fs.readFileSync('VALIDATION.exit', 'utf8').trim();
+            const zipSha = fs.readFileSync('CERTA_ACTIVE_V1_PREWARMED_SERVICE_ADOPTION_CONTROLLER_PACK_ZIP_SHA256.txt', 'utf8').trim();
+            const body = `<!-- CERTA_ADOPTION_PACK_VALIDATION -->\nValidation exit: ${exitCode}\n\n\`\`\`text\n${validation}\n\`\`\`\n\n${zipSha}`;
+            await github.rest.issues.createComment({owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body});
       - name: Upload build diagnostics and pack
         if: always()
         uses: actions/upload-artifact@v4
