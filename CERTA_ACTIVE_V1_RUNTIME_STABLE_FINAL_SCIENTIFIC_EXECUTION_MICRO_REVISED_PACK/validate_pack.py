@@ -6,6 +6,7 @@ from pathlib import Path
 REQUIRED=[
 "RESEARCH_DIRECTOR_DECISION.md","SOURCE_AND_LINEAGE_BINDINGS.json","RUNTIME_LIFECYCLE_POLICY.md","RUNTIME_CONTROLLER.py","CHECKPOINT_RESUME_PROTOCOL.md","SCIENTIFIC_FAILURE_TAXONOMY.md","SCHEMA_PROJECTION_FREEZE.json","INTEGRATION16_PROTOCOL.md","MATCHED_CONSTRUCTOR_PROTOCOL.md","BLIND_DECISION_PROTOCOL.md","HOLDOUT_PROTOCOL.md","ABSTRACT_CLAIM_EVIDENCE_LEDGER.md","AGENTS.md","REQUIRED_ARTIFACTS.md","EXECUTION_DAG.md","GOAL_MODE_COMMAND.txt","SHA256SUMS.txt"]
 FORBIDDEN_TOKENS=["ROLE_V3_FRESH_QUESTIONS","ROLE_V3_FRESH_LABELS.json","role cards:","new operation ontology"]
+SCAN_FILES=[x for x in REQUIRED if x not in {"validate_pack.py","SHA256SUMS.txt"}]
 
 def sha(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
@@ -24,7 +25,7 @@ def main():
     if freeze["projection_edits_authorized"] is not False: raise SystemExit("projection_not_frozen")
     goal=(root/"GOAL_MODE_COMMAND.txt").read_text()
     if len(goal.split())>1250: raise SystemExit("goal_too_long")
-    all_text="\n".join(p.read_text(errors="ignore") for p in root.iterdir() if p.is_file())
+    all_text="\n".join((root/name).read_text(errors="ignore") for name in SCAN_FILES if (root/name).is_file())
     for token in FORBIDDEN_TOKENS:
         if token in all_text: raise SystemExit("forbidden_content:"+token)
     py_compile.compile(str(root/"RUNTIME_CONTROLLER.py"),doraise=True)
