@@ -253,6 +253,7 @@ def reconcile_cera_decision(
     created_at: str,
     fixture_only: bool = False,
     decision_before_gold: bool = True,
+    artifact_arms: Sequence[str] = ("C2_ROLE_RETRIEVAL",),
 ) -> DecisionResolution:
     """Reconcile an existing CERA/validator result to executed registry authority."""
     failures = list(eligibility.failure_reasons if not eligibility.eligible else ())
@@ -347,7 +348,7 @@ def reconcile_cera_decision(
                             raw_derivation = raw_records[0]
                             if raw_derivation.get("sample_id") != sample_id:
                                 failures.append("raw_derivation_sample_mismatch")
-                            if raw_derivation.get("arm") != "C2_ROLE_RETRIEVAL":
+                            if raw_derivation.get("arm") not in set(artifact_arms):
                                 failures.append("raw_derivation_arm_mismatch")
                             if raw_derivation.get("side") != "ALTERNATIVE":
                                 failures.append("raw_derivation_not_alternative")

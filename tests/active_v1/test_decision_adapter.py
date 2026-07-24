@@ -138,6 +138,30 @@ class DecisionReconciliationTests(unittest.TestCase):
         self.f = fixture()
         self.eligible = eligibility(self.f)
 
+    def test_versioned_union_arm_requires_explicit_authorization(self):
+        raw = dict(
+            self.f["raw_derivation"],
+            arm="C1_C2_EXACT_PROGRAM_UNION",
+        )
+        registry = dict(
+            self.f["registry"],
+            arm="C1_C2_EXACT_PROGRAM_UNION",
+        )
+        registry_without_id = {
+            key: value
+            for key, value in registry.items()
+            if key != "registry_entry_id"
+        }
+        registry["registry_entry_id"] = (
+            f"REG-{canonical_json_hash(registry_without_id, 24)}"
+        )
+        result = self.reconcile(
+            raw_derivation_records=[raw],
+            registry_entries=[registry],
+            artifact_arms=("C1_C2_EXACT_PROGRAM_UNION",),
+        )
+        self.assertEqual(result.decision_record["action"], "USE_REGISTRY")
+
     def reconcile(self, **changes):
         f = self.f
         values = dict(
