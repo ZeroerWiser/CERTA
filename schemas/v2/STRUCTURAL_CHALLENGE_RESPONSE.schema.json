@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://certa.local/schemas/v2/STRUCTURAL_CHALLENGE_RESPONSE.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sample_id",
+    "candidate_id",
+    "candidate_answer_hash",
+    "packet_sha256",
+    "responses"
+  ],
+  "properties": {
+    "sample_id": {"type": "string", "minLength": 1},
+    "candidate_id": {"type": "string", "pattern": "^CAND-[0-9a-f]{64}$"},
+    "candidate_answer_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "packet_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "responses": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {"$ref": "#/$defs/challenge"}
+    }
+  },
+  "$defs": {
+    "challenge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "challenge_id",
+        "applicable",
+        "support",
+        "contradiction",
+        "artifact_refs",
+        "claim_codes"
+      ],
+      "properties": {
+        "challenge_id": {
+          "enum": [
+            "ROLE_OPERATION_SEMANTIC_FIT",
+            "SCOPE_COMPLETENESS",
+            "TEMPORAL_ALIGNMENT",
+            "UNIT_SCALE_CONSISTENCY",
+            "ORDER_AND_POLARITY",
+            "TIE_AND_ENTITY_PROJECTION",
+            "LOOKUP_ENTITY_MEASURE_IDENTITY"
+          ]
+        },
+        "applicable": {"type": "boolean"},
+        "support": {"enum": ["SUPPORTED", "NOT_SUPPORTED", "UNKNOWN"]},
+        "contradiction": {"enum": ["FOUND", "NOT_FOUND", "UNKNOWN"]},
+        "artifact_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "claim_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "CITED_SUPPORT",
+              "CITED_CONTRADICTION",
+              "INSUFFICIENT_EVIDENCE",
+              "NOT_APPLICABLE_BY_SIGNATURE"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

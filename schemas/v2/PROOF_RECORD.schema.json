@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://certa.local/schemas/v2/PROOF_RECORD.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sample_id",
+    "candidate_id",
+    "candidate_answer_hash",
+    "candidate_source",
+    "nodes",
+    "overall_state",
+    "registry_refs"
+  ],
+  "properties": {
+    "sample_id": {"type": "string", "minLength": 1},
+    "candidate_id": {"type": "string", "pattern": "^CAND-[0-9a-f]{64}$"},
+    "candidate_answer_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "candidate_source": {"enum": ["B0", "EXECUTED_REGISTRY"]},
+    "nodes": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {"$ref": "#/$defs/node"}
+    },
+    "overall_state": {"$ref": "#/$defs/state"},
+    "registry_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "$defs": {
+    "state": {"enum": ["PASS", "FAIL", "UNKNOWN"]},
+    "challenge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "challenge_id",
+        "applicable",
+        "support",
+        "contradiction",
+        "artifact_refs",
+        "claim_codes"
+      ],
+      "properties": {
+        "challenge_id": {
+          "enum": [
+            "ROLE_OPERATION_SEMANTIC_FIT",
+            "SCOPE_COMPLETENESS",
+            "TEMPORAL_ALIGNMENT",
+            "UNIT_SCALE_CONSISTENCY",
+            "ORDER_AND_POLARITY",
+            "TIE_AND_ENTITY_PROJECTION",
+            "LOOKUP_ENTITY_MEASURE_IDENTITY"
+          ]
+        },
+        "applicable": {"type": "boolean"},
+        "support": {"enum": ["SUPPORTED", "NOT_SUPPORTED", "UNKNOWN"]},
+        "contradiction": {"enum": ["FOUND", "NOT_FOUND", "UNKNOWN"]},
+        "artifact_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "claim_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "CITED_SUPPORT",
+              "CITED_CONTRADICTION",
+              "INSUFFICIENT_EVIDENCE",
+              "NOT_APPLICABLE_BY_SIGNATURE"
+            ]
+          }
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "required",
+        "depends_on",
+        "state",
+        "authority",
+        "witness_ref",
+        "artifact_refs",
+        "reason_codes",
+        "challenge_responses"
+      ],
+      "properties": {
+        "node_id": {
+          "enum": [
+            "ROLE",
+            "BINDING",
+            "OPERATION",
+            "EXECUTION",
+            "PROJECTION",
+            "STRUCTURAL_CHALLENGE",
+            "CANDIDATE_PROOF_STATE"
+          ]
+        },
+        "required": {"const": true},
+        "depends_on": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "state": {"$ref": "#/$defs/state"},
+        "authority": {
+          "enum": [
+            "DETERMINISTIC",
+            "MODEL_SEMANTIC_VALIDATED",
+            "DETERMINISTIC_DERIVED"
+          ]
+        },
+        "witness_ref": {"type": "string"},
+        "artifact_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "challenge_responses": {
+          "type": "array",
+          "maxItems": 7,
+          "items": {"$ref": "#/$defs/challenge"}
+        }
+      }
+    }
+  }
+}
